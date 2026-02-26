@@ -244,9 +244,9 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
+          max_tokens: 300,
           tools: [{ type: "web_search_20250305", name: "web_search" }],
-          messages: [{ role:"user", content:`${instruction} URL: ${url}. Summarise in plain text under 400 words. Focus on facts, product claims, and real customer language. No markdown.` }],
+          messages: [{ role:"user", content:`${instruction} URL: ${url}. Summarise in plain text under 120 words. Key facts, claims, and customer language only. No markdown.` }],
         }),
       });
       const data = await res.json();
