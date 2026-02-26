@@ -243,7 +243,7 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
+          model: "claude-haiku-4-5-20251001",
           max_tokens: 300,
           tools: [{ type: "web_search_20250305", name: "web_search" }],
           messages: [{ role:"user", content:`${instruction} URL: ${url}. Summarise in plain text under 120 words. Key facts, claims, and customer language only. No markdown.` }],
@@ -261,10 +261,12 @@ function App() {
     if (!brief.goal || !brief.angle || !brief.emotion) return setError("Please fill in goal, angle, and emotion.");
     setError(""); setLoading(true); setScripts(null); setFetchStatus(null);
 
-    const [websiteContent, trustpilotContent] = await Promise.all([
-      selectedBrand.websiteUrl ? fetchUrlContent(selectedBrand.websiteUrl, "Visit this product/brand website and extract: product descriptions, key benefits, USPs, pricing if shown, and any notable claims.") : null,
-      selectedBrand.trustpilotUrl ? fetchUrlContent(selectedBrand.trustpilotUrl, "Visit this Trustpilot page and extract: common themes in reviews, specific phrases customers use, what they love, what problems the product solved.") : null,
-    ]);
+    const websiteContent = selectedBrand.websiteUrl
+      ? await fetchUrlContent(selectedBrand.websiteUrl, "Visit this product/brand website and extract: product descriptions, key benefits, USPs, pricing if shown, and any notable claims.")
+      : null;
+    const trustpilotContent = selectedBrand.trustpilotUrl
+      ? await fetchUrlContent(selectedBrand.trustpilotUrl, "Visit this Trustpilot page and extract: common themes in reviews, specific phrases customers use, what they love, what problems the product solved.")
+      : null;
 
     setFetchStatus({
       website:    selectedBrand.websiteUrl    ? (websiteContent    ? "✓ fetched" : "⚠ unavailable") : "—",
@@ -391,10 +393,12 @@ Return ONLY this exact JSON, nothing else:
     if (!adCopyBrief.awarenessLevel || !adCopyBrief.dominantClaim || !adCopyBrief.headlineType) return setAdCopyError("Please fill in awareness level, dominant claim, and headline type.");
     setAdCopyError(""); setAdCopyLoading(true); setAdCopies(null); setAdCopyFetchStatus(null);
 
-    const [websiteContent, trustpilotContent] = await Promise.all([
-      selectedBrand.websiteUrl ? fetchUrlContent(selectedBrand.websiteUrl, "Visit this product/brand website and extract: product descriptions, key benefits, USPs, pricing if shown, and any notable claims.") : null,
-      selectedBrand.trustpilotUrl ? fetchUrlContent(selectedBrand.trustpilotUrl, "Visit this Trustpilot page and extract: common themes in reviews, specific phrases customers use, what they love, what problems the product solved.") : null,
-    ]);
+    const websiteContent = selectedBrand.websiteUrl
+      ? await fetchUrlContent(selectedBrand.websiteUrl, "Visit this product/brand website and extract: product descriptions, key benefits, USPs, pricing if shown, and any notable claims.")
+      : null;
+    const trustpilotContent = selectedBrand.trustpilotUrl
+      ? await fetchUrlContent(selectedBrand.trustpilotUrl, "Visit this Trustpilot page and extract: common themes in reviews, specific phrases customers use, what they love, what problems the product solved.")
+      : null;
 
     setAdCopyFetchStatus({
       website:    selectedBrand.websiteUrl    ? (websiteContent    ? "✓ fetched" : "⚠ unavailable") : "—",
