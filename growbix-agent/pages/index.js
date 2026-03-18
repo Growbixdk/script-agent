@@ -68,10 +68,10 @@ const defaultBrands = [
   {
     id: "1",
     name: "Sample Brand",
-    product: "Organic skincare serum for sensitive skin",
+    valueProposition: "The only skincare brand built around ceramide science for sensitive skin",
     audience: "Women 25-40 who struggle with redness and irritation",
     tone: "Warm, trustworthy, science-backed but approachable",
-    websiteUrl: "",
+    products: [{ id: "1", title: "Ceramide Repair Serum", url: "" }],
     trustpilotUrl: "",
     notes: "",
     failedAlternatives: "",
@@ -111,6 +111,7 @@ const AWARENESS  = ["Unaware — feels pain, no solution sought","Problem-aware 
 const HEADLINE_T = ["Benefit-led — specific result promised","News — 'Introducing / New / Finally'","Curiosity — open loop, tension","How-to — practical promise","Command — strong imperative","Social proof — number or name leads"];
 const PLACEMENT  = ["Meta Feed (image/carousel)","Meta Stories / Reels","Google Display","Email subject + preview","SMS / push notification","Landing page hero"];
 const DESIRED_ACT= ["Buy now / Add to cart","Click to learn more","Sign up / Register","Claim offer / Redeem","Book a call / Demo","Download / Get free resource"];
+const LANGUAGES = ["Danish","English","Swedish","Norwegian","German","French","Italian","Spanish","Polish"];
 
 // ── DOCX export helper ───────────────────────────────────────────────────────
 function loadDocxScript() {
@@ -215,7 +216,8 @@ function App() {
   const [brands, setBrands]               = useState(loadBrands);
   const [selectedBrandId, setSelectedBrandId] = useState(loadBrands()[0]?.id || "");
   const [brief, setBrief] = useState({ goal:"", angle:"", emotion:"", audienceStage:"", adFormat:"", adLength:"", funnelStage:"", kpi:"", activeOffer:"", extra:"" });
-  const [adCopyBrief, setAdCopyBrief] = useState({ awarenessLevel:"", dominantClaim:"", headlineType:"", placement:"", desiredAction:"", funnelStage:"", kpi:"", activeOffer:"", extra:"" });
+  const [adCopyBrief, setAdCopyBrief] = useState({ title:"", selectedProductId:"", awarenessLevel:"", dominantClaim:"", headlineType:"", activeOffer:"", extra:"", language:"Danish" });
+  const [uploadedImages, setUploadedImages] = useState([]);
   const [scripts, setScripts]             = useState(null);
   const [adCopies, setAdCopies]           = useState(null);
   const [loading, setLoading]             = useState(false);
@@ -228,7 +230,8 @@ function App() {
   const [exportState, setExportState]     = useState("idle");        // idle | loading | done | error
   const [exportUrl, setExportUrl]         = useState(null);
   const [editingBrand, setEditingBrand]   = useState(null);
-  const [brandForm, setBrandForm]         = useState({ name:"", product:"", audience:"", tone:"", websiteUrl:"", trustpilotUrl:"", mechanism:"", keyResult:"", failedAlternatives:"", mainObjection:"", heroProof:"", guarantee:"", competitorCliches:"", founderStory:"", priceAndOffer:"", notes:"" });
+  const [brandForm, setBrandForm]         = useState({ name:"", valueProposition:"", audience:"", tone:"", products:[{id:"1",title:"",url:""}], trustpilotUrl:"", mechanism:"", keyResult:"", failedAlternatives:"", mainObjection:"", heroProof:"", guarantee:"", competitorCliches:"", founderStory:"", priceAndOffer:"", notes:"" });
+  const [selectedProductIdx, setSelectedProductIdx] = useState(0);
 
   useEffect(() => { saveBrands(brands); }, [brands]);
   useEffect(() => { saveHistory(history); }, [history]);
@@ -261,20 +264,28 @@ function App() {
     if (!brief.goal || !brief.angle || !brief.emotion) return setError("Please fill in goal, angle, and emotion.");
     setError(""); setLoading(true); setScripts(null); setFetchStatus(null);
 
-    const websiteContent = selectedBrand.websiteUrl
-      ? await fetchUrlContent(selectedBrand.websiteUrl, "Visit this product/brand website and extract: product descriptions, key benefits, USPs, pricing if shown, and any notable claims.")
+    const activeProduct = (selectedBrand.products && selectedBrand.products.length > 0) ? selectedBrand.products[0] : null;
+    const websiteUrl = activeProduct?.url || selectedBrand.websiteUrl || "";
+
+    const websiteContent = websiteUrl
+      ? await fetchUrlContent(websiteUrl, "Visit this product/brand website and extract: product descriptions, key benefits, USPs, pricing if shown, and any notable claims.")
       : null;
     const trustpilotContent = selectedBrand.trustpilotUrl
       ? await fetchUrlContent(selectedBrand.trustpilotUrl, "Visit this Trustpilot page and extract: common themes in reviews, specific phrases customers use, what they love, what problems the product solved.")
       : null;
 
     setFetchStatus({
-      website:    selectedBrand.websiteUrl    ? (websiteContent    ? "✓ fetched" : "⚠ unavailable") : "—",
+      website:    websiteUrl    ? (websiteContent    ? "✓ fetched" : "⚠ unavailable") : "—",
       trustpilot: selectedBrand.trustpilotUrl ? (trustpilotContent ? "✓ fetched" : "⚠ unavailable") : "—",
     });
 
+    const productsContext = selectedBrand.products && selectedBrand.products.length > 0
+      ? selectedBrand.products.filter(p=>p.title).map(p=>`  - ${p.title}${p.url ? ` (${p.url})` : ""}`).join("\n")
+      : "";
+
     const brandContext = [
-      `- Product/Offer: ${selectedBrand.product}`,
+      `- Brand value proposition: ${selectedBrand.valueProposition || selectedBrand.product || ""}`,
+      productsContext && `- Products:\n${productsContext}`,
       `- Target Audience: ${selectedBrand.audience}`,
       `- Tone of Voice: ${selectedBrand.tone}`,
       selectedBrand.mechanism        && `- Mechanism / Point of difference: ${selectedBrand.mechanism}`,
@@ -393,20 +404,28 @@ Return ONLY this exact JSON, nothing else:
     if (!adCopyBrief.awarenessLevel || !adCopyBrief.dominantClaim || !adCopyBrief.headlineType) return setAdCopyError("Please fill in awareness level, dominant claim, and headline type.");
     setAdCopyError(""); setAdCopyLoading(true); setAdCopies(null); setAdCopyFetchStatus(null);
 
-    const websiteContent = selectedBrand.websiteUrl
-      ? await fetchUrlContent(selectedBrand.websiteUrl, "Visit this product/brand website and extract: product descriptions, key benefits, USPs, pricing if shown, and any notable claims.")
+    const products = selectedBrand.products || [];
+    const activeProduct = products.find(p => p.id === adCopyBrief.selectedProductId) || products[0] || null;
+    const adWebsiteUrl = activeProduct?.url || selectedBrand.websiteUrl || "";
+
+    const websiteContent = adWebsiteUrl
+      ? await fetchUrlContent(adWebsiteUrl, "Visit this product/brand website and extract: product descriptions, key benefits, USPs, pricing if shown, and any notable claims.")
       : null;
     const trustpilotContent = selectedBrand.trustpilotUrl
       ? await fetchUrlContent(selectedBrand.trustpilotUrl, "Visit this Trustpilot page and extract: common themes in reviews, specific phrases customers use, what they love, what problems the product solved.")
       : null;
 
     setAdCopyFetchStatus({
-      website:    selectedBrand.websiteUrl    ? (websiteContent    ? "✓ fetched" : "⚠ unavailable") : "—",
-      trustpilot: selectedBrand.trustpilotUrl ? (trustpilotContent ? "✓ fetched" : "⚠ unavailable") : "—",
+      website:    adWebsiteUrl    ? (websiteContent    ? "\u2713 fetched" : "\u26a0 unavailable") : "\u2014",
+      trustpilot: selectedBrand.trustpilotUrl ? (trustpilotContent ? "\u2713 fetched" : "\u26a0 unavailable") : "\u2014",
     });
 
+    const adProductsContext = products.filter(p=>p.title).map(p=>`  - ${p.title}${p.url ? ` (${p.url})` : ""}`).join("\n");
+
     const brandContext = [
-      `- Product/Offer: ${selectedBrand.product}`,
+      `- Brand value proposition: ${selectedBrand.valueProposition || selectedBrand.product || ""}`,
+      adProductsContext && `- Products:\n${adProductsContext}`,
+      activeProduct?.title && `- Product being advertised: ${activeProduct.title}`,
       `- Target Audience: ${selectedBrand.audience}`,
       `- Tone of Voice: ${selectedBrand.tone}`,
       selectedBrand.mechanism         && `- Mechanism / Point of difference: ${selectedBrand.mechanism}`,
@@ -423,6 +442,10 @@ Return ONLY this exact JSON, nothing else:
       selectedBrand.notes && `- Account manager notes:\n${selectedBrand.notes}`,
     ].filter(Boolean).join("\n\n");
 
+    const language = adCopyBrief.language || "Danish";
+    const hasImages = uploadedImages.length > 0;
+    const numCopies = hasImages ? uploadedImages.length : 3;
+
     const systemPrompt = `You are an elite direct-response ad copywriter trained on Schwartz's "Breakthrough Advertising" and Ogilvy's "Ogilvy on Advertising". You write paid written ad copy — headline + body.
 
 BRAND INTELLIGENCE:
@@ -436,54 +459,70 @@ CORE PRINCIPLES:
 
 STRUCTURE:
 - Headline: max 8 words. Calibrated to awareness level. Matches requested headline type. No vague superlatives.
-- Body: 40-80 words. Opens on desire/pain. Builds: problem → mechanism → proof → emotional payoff → CTA.
+- Body: 40-80 words. Opens on desire/pain. Builds: problem -> mechanism -> proof -> emotional payoff -> CTA.
+
+LANGUAGE: Write ALL output copy in ${language}. Headlines, body copy, and CTAs must all be in ${language}. The angle_label field stays in English.
 
 RULES:
 - Never invent stats, prices, or claims not in the brand data.
 - No profanity. Clean, brand-safe.
-- No "—" anywhere in output copy.
-- No clichés: "That's why", "Here's the thing", "The truth is", "And the best part", "It's that simple"
-- No rhetorical questions. No three-part list rhythm. No passive hedging ("may help", "designed to").
+- No em-dashes anywhere in output copy.
+- No clichés: "That's why", "Here's the thing", "The truth is", "And the best part"
+- No rhetorical questions. No three-part list rhythm. No passive hedging.
 - Write like 1960s Ogilvy print ads — direct, confident, specific, human prose rhythm.
 - Output ONLY valid JSON. No markdown, no preamble.`;
 
-    const placementNote = adCopyBrief.placement ? `\n- Placement: ${adCopyBrief.placement} — calibrate body length and density accordingly` : "";
-    const actionNote    = adCopyBrief.desiredAction ? `\n- Desired reader action: ${adCopyBrief.desiredAction}` : "";
+    let userPromptText;
+    if (hasImages) {
+      userPromptText = `You are given ${uploadedImages.length} ad creative image${uploadedImages.length>1?"s":""}. For each image, write one distinct ad copy (headline + body) that directly matches and complements what is shown in that specific creative. The copy must feel written for that exact visual.
 
-    const userPrompt = `Write 3 distinct written ad copy variations (headline + body) for the following brief. The 3 variations must each interpret the brief differently — different entry point into the desire, different proof element, different emotional arc. They must not feel like the same ad with different words.
+BRIEF:
+- Audience awareness level: ${adCopyBrief.awarenessLevel}
+- The one dominant claim: ${adCopyBrief.dominantClaim}
+- Headline type: ${adCopyBrief.headlineType}
+- Language: ${language}
+${adCopyBrief.activeOffer ? `- Active offer: ${adCopyBrief.activeOffer}` : ""}
+${adCopyBrief.extra ? `- Direction: ${adCopyBrief.extra}` : ""}
+
+For each image, describe what you see and use that to inform the copy — the mood, product, visual cues, setting, colours, and style should all shape the headline and body.
+
+angle_label = 3-5 words describing the visual and creative approach.
+
+Return ONLY this exact JSON: {"copies":[${",".join(['{"variation":'+ str(i+1) +',"angle_label":"...","headline":"...","body":"..."}' for i in range(len(uploadedImages))])}]}`;
+    } else {
+      userPromptText = `Write 3 distinct written ad copy variations (headline + body). Each must interpret the brief differently.
 
 BRIEF:
 - Audience awareness level: ${adCopyBrief.awarenessLevel}
 - The one dominant claim this ad must make: ${adCopyBrief.dominantClaim}
-- Headline type: ${adCopyBrief.headlineType}${placementNote}${actionNote}
-- Funnel position: ${adCopyBrief.funnelStage || "Not specified"}
-- Primary KPI: ${adCopyBrief.kpi || "Not specified"}
+- Headline type: ${adCopyBrief.headlineType}
+- Language: ${language}
 ${adCopyBrief.activeOffer ? `- Active offer / promotion: ${adCopyBrief.activeOffer}` : ""}
 ${adCopyBrief.extra ? `- Additional context / angle direction: ${adCopyBrief.extra}` : ""}
 
-VARIATION STRATEGY — each variation must use a different way into the same dominant claim:
-V1: Lead with the RESULT or MECHANISM — open on the specific outcome and name how it happens. Body: proof-first → mechanism → CTA.
-V2: Lead with the PROBLEM or VILLAIN — open on the pain or the false belief that kept them stuck. Body: empathy → turning point → emotional payoff → CTA.
-V3: Lead with SOCIAL PROOF, NEWS, or SPECIFICITY — open on a number, a customer voice, or a news frame ("Introducing / X people have already..."). Body: validate → mechanism → urgency → CTA.
-
-All 3 must:
-- Be precisely calibrated to the awareness level stated above
-- Match the specified headline type
-- Have a headline of max 8 words — specific, no vague superlatives
-- Have body copy of 40–80 words
-- End with a CTA that names the action, the reason to act now, and removes friction
-- Use real brand data (mechanism, proof, offer) — never invent claims
-
-angle_label = 3–5 words describing the creative approach used (e.g. "Mechanism-Led Result", "Villain Opens Door", "Social Proof News Frame")
+V1: Lead with RESULT or MECHANISM. V2: Lead with PROBLEM or VILLAIN. V3: Lead with SOCIAL PROOF or SPECIFICITY.
+angle_label = 3-5 words describing the creative approach.
 
 Return ONLY this exact JSON, nothing else:
 {"copies":[{"variation":1,"angle_label":"...","headline":"...","body":"..."},{"variation":2,"angle_label":"...","headline":"...","body":"..."},{"variation":3,"angle_label":"...","headline":"...","body":"..."}]}`;
+    }
+
+    let messages;
+    if (hasImages) {
+      const imageContent = uploadedImages.flatMap((img, i) => ([
+        { type: "text", text: `Image ${i+1}: ${img.name}` },
+        { type: "image", source: { type: "base64", media_type: img.mediaType, data: img.base64 } },
+      ]));
+      messages = [{ role: "user", content: [...imageContent, { type: "text", text: userPromptText }] }];
+    } else {
+      messages = [{ role: "user", content: userPromptText }];
+    }
 
     try {
       const res = await fetch("/api/claude", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model:"claude-haiku-4-5-20251001", max_tokens:3000, system:systemPrompt, messages:[{role:"user",content:userPrompt}] }),
+        body: JSON.stringify({ model:"claude-haiku-4-5-20251001", max_tokens:3000, system:systemPrompt, messages }),
       });
       const data = await res.json();
       if (!res.ok || data.error) { setAdCopyError(`API error: ${data.error?.message || `HTTP ${res.status}`}`); setAdCopyLoading(false); return; }
@@ -500,12 +539,24 @@ Return ONLY this exact JSON, nothing else:
       const newCopies = parsed.copies;
       setAdCopies(newCopies);
 
-      // Auto-save ad copies to history tagged as type "adcopy"
       const entry = {
         id: Date.now().toString(),
         savedAt: Date.now(),
         type: "adcopy",
-        brief: { goal: adCopyBrief.dominantClaim, angle: adCopyBrief.headlineType, awarenessLevel:adCopyBrief.awarenessLevel, dominantClaim:adCopyBrief.dominantClaim, headlineType:adCopyBrief.headlineType, placement:adCopyBrief.placement, desiredAction:adCopyBrief.desiredAction, funnelStage:adCopyBrief.funnelStage, kpi:adCopyBrief.kpi, activeOffer:adCopyBrief.activeOffer, extra:adCopyBrief.extra },
+        brief: {
+          title: adCopyBrief.title,
+          goal: adCopyBrief.dominantClaim,
+          angle: adCopyBrief.headlineType,
+          awarenessLevel: adCopyBrief.awarenessLevel,
+          dominantClaim: adCopyBrief.dominantClaim,
+          headlineType: adCopyBrief.headlineType,
+          language: language,
+          selectedProductId: adCopyBrief.selectedProductId,
+          activeOffer: adCopyBrief.activeOffer,
+          extra: adCopyBrief.extra,
+          imageCount: uploadedImages.length,
+          imageNames: uploadedImages.map(i=>i.name),
+        },
         copies: newCopies,
       };
       setHistory(prev => {
@@ -533,8 +584,9 @@ Return ONLY this exact JSON, nothing else:
   }
 
   // ── Brand CRUD ───────────────────────────────────────────────────────────
-  function openNewBrand()  { setEditingBrand("new"); setBrandForm({ name:"", product:"", audience:"", tone:"", websiteUrl:"", trustpilotUrl:"", mechanism:"", keyResult:"", failedAlternatives:"", mainObjection:"", heroProof:"", guarantee:"", competitorCliches:"", founderStory:"", priceAndOffer:"", notes:"" }); }
-  function openEditBrand(b){ setEditingBrand(b.id);  setBrandForm({ name:b.name, product:b.product, audience:b.audience, tone:b.tone, websiteUrl:b.websiteUrl||"", trustpilotUrl:b.trustpilotUrl||"", mechanism:b.mechanism||"", keyResult:b.keyResult||"", failedAlternatives:b.failedAlternatives||"", mainObjection:b.mainObjection||"", heroProof:b.heroProof||"", guarantee:b.guarantee||"", competitorCliches:b.competitorCliches||"", founderStory:b.founderStory||"", priceAndOffer:b.priceAndOffer||"", notes:b.notes||"" }); }
+  const emptyBrandForm = { name:"", valueProposition:"", audience:"", tone:"", products:[{id:"1",title:"",url:""}], trustpilotUrl:"", mechanism:"", keyResult:"", failedAlternatives:"", mainObjection:"", heroProof:"", guarantee:"", competitorCliches:"", founderStory:"", priceAndOffer:"", notes:"" };
+  function openNewBrand()  { setEditingBrand("new"); setSelectedProductIdx(0); setBrandForm(emptyBrandForm); }
+  function openEditBrand(b){ setEditingBrand(b.id); setSelectedProductIdx(0); setBrandForm({ name:b.name, valueProposition:b.valueProposition||b.product||"", audience:b.audience, tone:b.tone, products:b.products||[{id:"1",title:"",url:b.websiteUrl||""}], trustpilotUrl:b.trustpilotUrl||"", mechanism:b.mechanism||"", keyResult:b.keyResult||"", failedAlternatives:b.failedAlternatives||"", mainObjection:b.mainObjection||"", heroProof:b.heroProof||"", guarantee:b.guarantee||"", competitorCliches:b.competitorCliches||"", founderStory:b.founderStory||"", priceAndOffer:b.priceAndOffer||"", notes:b.notes||"" }); }
   function saveBrand() {
     if (!brandForm.name.trim()) return;
     if (editingBrand === "new") {
@@ -606,7 +658,7 @@ Return ONLY this exact JSON, nothing else:
         {/* ── Main ── */}
         <main style={{flex:1,overflow:"auto"}}>
           {view==="generate" && <GenerateView brand={selectedBrand} brief={brief} setBrief={setBrief} onGenerate={generateScripts} loading={loading} error={error} scripts={scripts} onCopy={copyScript} onSwitchToBrands={()=>setView("brands")} fetchStatus={fetchStatus} />}
-          {view==="adcopy"   && <AdCopyView brand={selectedBrand} brief={adCopyBrief} setBrief={setAdCopyBrief} onGenerate={generateAdCopy} loading={adCopyLoading} error={adCopyError} copies={adCopies} onCopy={copyAdCopyItem} onSwitchToBrands={()=>setView("brands")} fetchStatus={adCopyFetchStatus} />}
+          {view==="adcopy"   {view==="adcopy"   && <AdCopyView brand={selectedBrand} brief={adCopyBrief} setBrief={setAdCopyBrief} onGenerate={generateAdCopy} loading={adCopyLoading} error={adCopyError} copies={adCopies} onCopy={copyAdCopyItem} onSwitchToBrands={()=>setView("brands")} fetchStatus={adCopyFetchStatus} />}{view==="adcopy"   && <AdCopyView brand={selectedBrand} brief={adCopyBrief} setBrief={setAdCopyBrief} onGenerate={generateAdCopy} loading={adCopyLoading} error={adCopyError} copies={adCopies} onCopy={copyAdCopyItem} onSwitchToBrands={()=>setView("brands")} fetchStatus={adCopyFetchStatus} />} <AdCopyView brand={selectedBrand} brief={adCopyBrief} setBrief={setAdCopyBrief} onGenerate={generateAdCopy} loading={adCopyLoading} error={adCopyError} copies={adCopies} onCopy={copyAdCopyItem} onSwitchToBrands={()=>setView("brands")} fetchStatus={adCopyFetchStatus} uploadedImages={uploadedImages} setUploadedImages={setUploadedImages} />}
           {view==="history"  && <HistoryView brand={selectedBrand} history={brandHistory} onDelete={deleteHistoryEntry} onExport={handleExportDocx} exportState={exportState} exportUrl={exportUrl} onCopy={copyScript} />}
           {view==="brands"   && <BrandsView brands={brands} editingBrand={editingBrand} brandForm={brandForm} setBrandForm={setBrandForm} onNew={openNewBrand} onEdit={openEditBrand} onDelete={deleteBrand} onSave={saveBrand} onCancel={()=>setEditingBrand(null)} />}
         </main>
@@ -747,11 +799,18 @@ function HistoryView({ brand, history, onDelete, onExport, exportState, exportUr
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:800,color:"#222",marginBottom:3}}>
                     <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",background:isAdCopy?"#e8eeff":"#fff0f0",border:`1px solid ${isAdCopy?"#aac4ff":"#ffacac"}`,borderRadius:20,color:isAdCopy?"#3b67e8":"#ff5757",marginRight:8}}>{isAdCopy?"AD COPY":"UGC SCRIPT"}</span>
-                    {date} <span style={{fontWeight:500,color:"#838383"}}>at {time}</span>
+                    {isAdCopy && entry.brief.title ? (
+                      <span style={{color:"#222"}}>{entry.brief.title}</span>
+                    ) : (
+                      <span>{date} <span style={{fontWeight:500,color:"#838383"}}>at {time}</span></span>
+                    )}
                   </div>
+                  {isAdCopy && entry.brief.title && (
+                    <div style={{fontSize:11,color:"#838383",fontWeight:500,marginBottom:3}}>{date} at {time}</div>
+                  )}
                   <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>
                     {isAdCopy
-                      ? [entry.brief.awarenessLevel?.split("—")[0]?.trim(), entry.brief.headlineType?.split("—")[0]?.trim(), entry.brief.placement].filter(Boolean).map(tag=>(
+                      ? [entry.brief.language, entry.brief.awarenessLevel?.split("—")[0]?.trim(), entry.brief.headlineType?.split("—")[0]?.trim(), entry.brief.imageCount > 0 ? `${entry.brief.imageCount} images` : null].filter(Boolean).map(tag=>(
                           <span key={tag} style={{fontSize:10,fontWeight:700,padding:"2px 8px",background:"#f4f4f4",borderRadius:20,color:"#5c5c5c"}}>{tag}</span>
                         ))
                       : [entry.brief.goal, entry.brief.audienceStage, entry.brief.angle, entry.brief.emotion].filter(Boolean).map(tag=>(
@@ -811,7 +870,7 @@ function ScriptCard({ script, onCopy, compact }) {
 }
 
 // ── Ad Copy View ──────────────────────────────────────────────────────────────
-function AdCopyView({ brand, brief, setBrief, onGenerate, loading, error, copies, onCopy, onSwitchToBrands, fetchStatus }) {
+function AdCopyView({ brand, brief, setBrief, onGenerate, loading, error, copies, onCopy, onSwitchToBrands, fetchStatus, uploadedImages, setUploadedImages }) {
   if (!brand) return (
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",gap:16}}>
       <div style={{fontSize:52}}>✍️</div>
@@ -829,6 +888,70 @@ function AdCopyView({ brand, brief, setBrief, onGenerate, loading, error, copies
           <p style={{fontSize:12,color:"#838383",fontWeight:500,marginTop:6}}>Headline + body. Calibrated to awareness level & placement.</p>
         </div>
 
+        {/* ── Section: Setup ── */}
+        <div style={{fontSize:10,fontWeight:800,color:"#bcbcbc",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:-10}}>Setup</div>
+
+        <Field label="Generation Title" optional>
+          <input style={IN} placeholder="e.g. Summer campaign — awareness push" value={brief.title} onChange={e=>setBrief(b=>({...b,title:e.target.value}))} />
+        </Field>
+
+        {brand.products && brand.products.length > 0 && (
+          <Field label="Product">
+            <select style={{...IN,cursor:"pointer"}} value={brief.selectedProductId||""} onChange={e=>setBrief(b=>({...b,selectedProductId:e.target.value}))}>
+              <option value="">Select a product…</option>
+              {brand.products.map(p=>(
+                <option key={p.id} value={p.id}>{p.title||"Untitled product"}</option>
+              ))}
+            </select>
+          </Field>
+        )}
+
+        <Field label="Language">
+          <Pills items={LANGUAGES} value={brief.language||"Danish"} onChange={v=>setBrief(b=>({...b,language:v}))} />
+        </Field>
+
+        <Field label="Ad Creatives" optional>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            <label style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"12px 16px",border:"1.5px dashed #dbdbdb",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:600,color:"#838383",background:"#fafafa",transition:"all 0.15s"}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor="#ff5757";e.currentTarget.style.color="#ff5757";}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor="#dbdbdb";e.currentTarget.style.color="#838383";}}>
+              <span>📎</span>
+              <span>Upload images (PNG, JPG, JPEG)</span>
+              <input type="file" accept="image/png,image/jpeg,image/jpg" multiple style={{display:"none"}}
+                onChange={e=>{
+                  const files = Array.from(e.target.files);
+                  files.forEach(file=>{
+                    const reader = new FileReader();
+                    reader.onload = ev => {
+                      const base64 = ev.target.result.split(",")[1];
+                      const mediaType = file.type;
+                      setUploadedImages(prev=>[...prev,{name:file.name,base64,mediaType}]);
+                    };
+                    reader.readAsDataURL(file);
+                  });
+                  e.target.value="";
+                }} />
+            </label>
+            {uploadedImages.length > 0 && (
+              <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                {uploadedImages.map((img,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:"#f4f4f4",borderRadius:7,fontSize:11}}>
+                    <span style={{fontSize:14}}>🖼️</span>
+                    <span style={{flex:1,fontWeight:600,color:"#414141",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{img.name}</span>
+                    <button onClick={()=>setUploadedImages(prev=>prev.filter((_,j)=>j!==i))}
+                      style={{background:"none",border:"none",cursor:"pointer",color:"#fd7b7b",fontWeight:700,fontSize:12,fontFamily:"inherit",padding:"0 4px"}}>✕</button>
+                  </div>
+                ))}
+                <div style={{fontSize:10,color:"#bcbcbc",fontWeight:600}}>
+                  {uploadedImages.length} image{uploadedImages.length!==1?"s":""} — will generate {uploadedImages.length} ad cop{uploadedImages.length!==1?"ies":"y"}, one per creative
+                </div>
+                <button onClick={()=>setUploadedImages([])} style={{fontSize:11,color:"#838383",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:600,textAlign:"left",padding:0}}>Clear all</button>
+              </div>
+            )}
+          </div>
+        </Field>
+
+        <div style={{height:1,background:"#f0f0f0",margin:"0 0 4px"}} />
         {/* ── Section: The Strategic Core ── */}
         <div style={{fontSize:10,fontWeight:800,color:"#bcbcbc",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:-10}}>Strategic Core — required</div>
 
@@ -957,11 +1080,52 @@ function BrandsView({ brands, editingBrand, brandForm, setBrandForm, onNew, onEd
           </div>
           <SD title="Brand Information" />
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-            <LabelTA label="Product / Offer"   placeholder="What are you selling? Core USP?"              value={brandForm.product}  onChange={set("product")} />
+            <LabelTA label="Value Proposition"   placeholder="What's the core promise of this brand? e.g. The only skincare brand built around ceramide science for sensitive skin."              value={brandForm.valueProposition}  onChange={set("valueProposition")} />
             <LabelTA label="Target Audience"   placeholder="Who's the ideal customer? Age, pain points."  value={brandForm.audience} onChange={set("audience")} />
             <LabelTA label="Tone of Voice"     placeholder="e.g. Casual, never salesy, empowering."       value={brandForm.tone}     onChange={set("tone")} />
           </div>
-          <SD title="🔬 Product Intelligence" subtitle="— the AI uses this to build mechanisms, villains & proof" />
+          <SD title="🔬 Product Intelligence" subtitle="— add one or more products with their individual links" />
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {(brandForm.products||[]).map((prod,idx)=>(
+              <div key={prod.id} style={{background:"#f9f9f9",border:"1.5px solid #ebebeb",borderRadius:10,padding:"14px 16px",display:"flex",flexDirection:"column",gap:10}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span style={{fontSize:11,fontWeight:800,color:"#838383",textTransform:"uppercase",letterSpacing:"0.08em"}}>Product {idx+1}</span>
+                  {(brandForm.products||[]).length > 1 && (
+                    <button onClick={()=>setBrandForm(f=>({...f,products:f.products.filter((_,i)=>i!==idx)}))}
+                      style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:"#fd7b7b",fontWeight:700,fontFamily:"inherit"}}>Remove</button>
+                  )}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    <label style={{fontSize:11,fontWeight:800,color:"#414141",textTransform:"uppercase",letterSpacing:"0.08em"}}>Product Title</label>
+                    <input style={IN} placeholder="e.g. Ceramide Repair Serum" value={prod.title}
+                      onChange={e=>setBrandForm(f=>({...f,products:f.products.map((p,i)=>i===idx?{...p,title:e.target.value}:p)}))} />
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    <label style={{fontSize:11,fontWeight:800,color:"#414141",textTransform:"uppercase",letterSpacing:"0.08em"}}>Product URL</label>
+                    <input style={IN} placeholder="https://yourbrand.com/product" value={prod.url}
+                      onChange={e=>setBrandForm(f=>({...f,products:f.products.map((p,i)=>i===idx?{...p,url:e.target.value}:p)}))} />
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button onClick={()=>setBrandForm(f=>({...f,products:[...(f.products||[]),{id:Date.now().toString(),title:"",url:""}]}))}
+              style={{padding:"9px 16px",background:"#fff",border:"1.5px dashed #dbdbdb",borderRadius:8,color:"#838383",fontWeight:700,fontSize:12,fontFamily:"inherit",cursor:"pointer",textAlign:"left"}}>
+              + Add another product
+            </button>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              <label style={{fontSize:11,fontWeight:800,color:"#414141",textTransform:"uppercase",letterSpacing:"0.08em"}}>Active product for generation</label>
+              <select value={brandForm.products?.[0]?.id||""} style={{...IN,cursor:"pointer"}}
+                onChange={e=>{
+                  const idx = (brandForm.products||[]).findIndex(p=>p.id===e.target.value);
+                  if(idx>0) setBrandForm(f=>{const ps=[...f.products]; const [sel]=ps.splice(idx,1); return {...f,products:[sel,...ps]};});
+                }}>
+                {(brandForm.products||[]).map((p,i)=>(
+                  <option key={p.id} value={p.id}>{p.title||`Product ${i+1} (untitled)`}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
             <LabelTA label="Mechanism / Point of Difference" placeholder="What makes this product uniquely work? e.g. Ceramide complex rebuilds the skin barrier from within — unlike surface moisturisers." value={brandForm.mechanism} onChange={set("mechanism")} />
             <LabelTA label="Key Result + Timeframe" placeholder="What's the #1 result customers get, and how fast? e.g. Visible reduction in redness within 7 days." value={brandForm.keyResult} onChange={set("keyResult")} />
@@ -980,12 +1144,27 @@ function BrandsView({ brands, editingBrand, brandForm, setBrandForm, onNew, onEd
             <LabelTA label="Founder / Brand Origin Story" placeholder="e.g. Founded by a nurse who struggled with her own skin. Made in Denmark. Family business since 2018." value={brandForm.founderStory} onChange={set("founderStory")} />
           </div>
           <SD title="🔗 Reference Links" subtitle="— fetched automatically during generation" />
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-            <LabelInput label="🌐 Website / Product URL" placeholder="https://yourbrand.com"                         value={brandForm.websiteUrl}    onChange={set("websiteUrl")} />
-            <LabelInput label="⭐ Trustpilot URL"         placeholder="https://trustpilot.com/review/yourbrand.com"  value={brandForm.trustpilotUrl} onChange={set("trustpilotUrl")} />
+          <div style={{display:"grid",gridTemplateColumns:"1fr",gap:14}}>
+            <LabelInput label="⭐ Trustpilot URL" placeholder="https://trustpilot.com/review/yourbrand.com" value={brandForm.trustpilotUrl} onChange={set("trustpilotUrl")} />
           </div>
-          <SD title="📝 Account Manager Notes" subtitle="— winning hooks, platform observations, what to avoid" />
-          <LabelTA label="Notes" placeholder="e.g. Best performing ad uses before/after hook. Customers love fast delivery. Avoid aggressive discount angles — brand is premium." value={brandForm.notes} onChange={set("notes")} />
+          <SD title="📝 Account Manager Notes" subtitle="— paste links, winning hooks, platform observations" />
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            <label style={{fontSize:11,fontWeight:800,color:"#414141",textTransform:"uppercase",letterSpacing:"0.08em"}}>Notes</label>
+            <textarea style={{...TA,minHeight:70}} placeholder="e.g. Best performing ad uses before/after hook. https://fb.com/ads/example. Avoid aggressive discount angles." value={brandForm.notes} onChange={set("notes")} />
+            {brandForm.notes && (() => {
+              const urls = brandForm.notes.match(/https?:\/\/[^\s]+/g);
+              return urls ? (
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:2}}>
+                  {urls.map((u,i)=>(
+                    <a key={i} href={u} target="_blank" rel="noreferrer" className="bl"
+                      style={{fontSize:11,fontWeight:700,color:"#5c5c5c",background:"#f4f4f4",border:"1px solid #ebebeb",borderRadius:20,padding:"3px 10px",textDecoration:"none",transition:"all 0.15s"}}>
+                      🔗 {u.length>40?u.slice(0,40)+"…":u}
+                    </a>
+                  ))}
+                </div>
+              ) : null;
+            })()}
+          </div>
           <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:20,paddingTop:16,borderTop:"1px solid #ebebeb"}}>
             <button className="bs" style={BS} onClick={onCancel}>Cancel</button>
             <button className="bp" style={BP} onClick={onSave}>Save Brand</button>
