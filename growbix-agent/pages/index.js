@@ -625,19 +625,30 @@ Return ONLY this exact JSON, nothing else:
         @keyframes bounce{0%,100%{transform:translateY(0);opacity:1}50%{transform:translateY(-8px);opacity:.5}}
         @keyframes fi{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
         .fi{animation:fi .35s ease;}
+        @media(max-width:768px){
+          .sidebar{width:100%!important;flex-direction:row!important;height:56px!important;position:fixed;bottom:0;left:0;right:0;z-index:100;}
+          .sidebar-logo,.sidebar-client{display:none!important;}
+          .sidebar-nav{flex-direction:row!important;padding:0!important;width:100%;gap:0!important;}
+          .sidebar-nav button{flex:1;flex-direction:column!important;padding:6px 2px!important;font-size:9px!important;gap:2px!important;border-radius:0!important;min-width:0!important;}
+          .main-wrap{flex-direction:column!important;}
+          .main-content{padding-bottom:64px!important;}
+          .form-panel{width:100%!important;min-width:0!important;border-right:none!important;border-bottom:1px solid #ebebeb;}
+          .two-col{grid-template-columns:1fr!important;}
+          .history-wrap{padding:20px 16px!important;}
+        }
       `}</style>
-      <div style={{display:"flex",minHeight:"100vh",fontFamily:"'Montserrat',sans-serif",background:"#f4f4f4",color:"#222"}}>
+      <div className="main-wrap" style={{display:"flex",minHeight:"100vh",fontFamily:"'Montserrat',sans-serif",background:"#f4f4f4",color:"#222"}}>
 
         {/* ── Sidebar ── */}
-        <aside style={{width:230,flexShrink:0,background:"#222222",display:"flex",flexDirection:"column"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,padding:"26px 20px 22px",borderBottom:"1px solid #414141"}}>
+        <aside className="sidebar" style={{width:230,flexShrink:0,background:"#222222",display:"flex",flexDirection:"column"}}>
+          <div className="sidebar-logo" style={{display:"flex",alignItems:"center",gap:10,padding:"26px 20px 22px",borderBottom:"1px solid #414141"}}>
             <span style={{fontSize:28}}>🚀</span>
             <div>
               <div style={{fontWeight:900,fontSize:17,color:"#fff",letterSpacing:"-0.03em",lineHeight:1}}>growbix</div>
               <div style={{fontWeight:700,fontSize:9,color:"#ff5757",textTransform:"uppercase",letterSpacing:"0.12em",marginTop:3}}>Script Agent</div>
             </div>
           </div>
-          <div style={{padding:"14px 16px",borderBottom:"1px solid #414141"}}>
+          <div className="sidebar-client" style={{padding:"14px 16px",borderBottom:"1px solid #414141"}}>
             <div style={{fontSize:10,fontWeight:800,color:"#5c5c5c",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}}>Active client</div>
             <select style={{width:"100%",padding:"8px 10px",background:"#414141",border:"1px solid #5c5c5c",borderRadius:7,color:"#fff",fontSize:12,fontFamily:"inherit",fontWeight:700,cursor:"pointer"}}
               value={selectedBrandId} onChange={e=>{setSelectedBrandId(e.target.value);setExportState("idle");setExportUrl(null);}}>
@@ -645,7 +656,7 @@ Return ONLY this exact JSON, nothing else:
             </select>
 
           </div>
-          <nav style={{padding:"14px 10px",display:"flex",flexDirection:"column",gap:3}}>
+          <nav className="sidebar-nav" style={{padding:"14px 10px",display:"flex",flexDirection:"column",gap:3}}>
             {[{id:"generate",icon:"⚡",label:"UGC Scripts"},{id:"adcopy",icon:"✍️",label:"Ad Copy"},{id:"history",icon:"🕘",label:`History (${brandHistory.length})`},{id:"brands",icon:"🏢",label:`Brands (${brands.length})`}].map(item=>(
               <button key={item.id} className="nb"
                 style={{display:"flex",alignItems:"center",gap:10,padding:"11px 12px",borderRadius:8,border:"none",background:view===item.id?"#ff5757":"transparent",color:view===item.id?"#fff":"#838383",cursor:"pointer",fontSize:13,fontFamily:"inherit",fontWeight:700,textAlign:"left",transition:"all 0.15s"}}
@@ -656,7 +667,7 @@ Return ONLY this exact JSON, nothing else:
         </aside>
 
         {/* ── Main ── */}
-        <main style={{flex:1,overflow:"auto"}}>
+        <main className="main-content" style={{flex:1,overflow:"auto"}}>
           {view==="generate" && <GenerateView brand={selectedBrand} brief={brief} setBrief={setBrief} onGenerate={generateScripts} loading={loading} error={error} scripts={scripts} onCopy={copyScript} onSwitchToBrands={()=>setView("brands")} fetchStatus={fetchStatus} />}
           {view==="adcopy"   && <AdCopyView brand={selectedBrand} brief={adCopyBrief} setBrief={setAdCopyBrief} onGenerate={generateAdCopy} loading={adCopyLoading} error={adCopyError} copies={adCopies} onCopy={copyAdCopyItem} onSwitchToBrands={()=>setView("brands")} fetchStatus={adCopyFetchStatus} uploadedImages={uploadedImages} setUploadedImages={setUploadedImages} />}
           {view==="history"  && <HistoryView brand={selectedBrand} history={brandHistory} onDelete={deleteHistoryEntry} onExport={handleExportDocx} exportState={exportState} exportUrl={exportUrl} onCopy={copyScript} />}
@@ -679,7 +690,7 @@ function GenerateView({ brand, brief, setBrief, onGenerate, loading, error, scri
   return (
     <div style={{display:"flex",minHeight:"100vh"}}>
       {/* Form panel */}
-      <div style={{width:390,flexShrink:0,background:"#fff",padding:"36px 30px",display:"flex",flexDirection:"column",gap:22,borderRight:"1px solid #ebebeb"}}>
+      <div style={{width:390,flexShrink:0,background:"#fff",padding:"36px 30px",display:"flex",flexDirection:"column",gap:22,borderRight:"1px solid #ebebeb"}} className="form-panel">
         <div>
           <div style={{display:"inline-flex",padding:"3px 10px",background:"#fff0f0",border:"1px solid #ffacac",color:"#ff5757",borderRadius:20,fontSize:11,fontWeight:800,marginBottom:8}}>{brand.name}</div>
           <h1 style={{fontSize:28,fontWeight:900,color:"#222",letterSpacing:"-0.03em"}}>New Brief</h1>
@@ -758,7 +769,7 @@ function HistoryView({ brand, history, onDelete, onExport, exportState, exportUr
   if (!brand) return <div style={{padding:40,color:"#838383",fontWeight:600}}>Select a brand to view history.</div>;
 
   return (
-    <div style={{padding:"36px 40px",maxWidth:900}}>
+    <div className="history-wrap" style={{padding:"36px 40px",maxWidth:900}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:28}}>
         <div>
           <h1 style={{fontSize:28,fontWeight:900,color:"#222",letterSpacing:"-0.03em",marginBottom:4}}>Script History</h1>
@@ -881,7 +892,7 @@ function AdCopyView({ brand, brief, setBrief, onGenerate, loading, error, copies
   return (
     <div style={{display:"flex",minHeight:"100vh"}}>
       {/* Form panel */}
-      <div style={{width:410,flexShrink:0,background:"#fff",padding:"36px 30px",display:"flex",flexDirection:"column",gap:22,borderRight:"1px solid #ebebeb",overflowY:"auto"}}>
+      <div style={{width:410,flexShrink:0,background:"#fff",padding:"36px 30px",display:"flex",flexDirection:"column",gap:22,borderRight:"1px solid #ebebeb",overflowY:"auto"}} className="form-panel">
         <div>
           <div style={{display:"inline-flex",padding:"3px 10px",background:"#fff0f0",border:"1px solid #ffacac",color:"#ff5757",borderRadius:20,fontSize:11,fontWeight:800,marginBottom:8}}>{brand.name}</div>
           <h1 style={{fontSize:28,fontWeight:900,color:"#222",letterSpacing:"-0.03em"}}>Ad Copy</h1>
@@ -1079,7 +1090,7 @@ function BrandsView({ brands, editingBrand, brandForm, setBrandForm, onNew, onEd
             <LabelInput label="Brand Name" placeholder="e.g. Glow Labs" value={brandForm.name} onChange={set("name")} />
           </div>
           <SD title="Brand Information" />
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}} className="two-col">
             <LabelTA label="Value Proposition"   placeholder="What's the core promise of this brand? e.g. The only skincare brand built around ceramide science for sensitive skin."              value={brandForm.valueProposition}  onChange={set("valueProposition")} />
             <LabelTA label="Target Audience"   placeholder="Who's the ideal customer? Age, pain points."  value={brandForm.audience} onChange={set("audience")} />
             <LabelTA label="Tone of Voice"     placeholder="e.g. Casual, never salesy, empowering."       value={brandForm.tone}     onChange={set("tone")} />
@@ -1126,20 +1137,21 @@ function BrandsView({ brands, editingBrand, brandForm, setBrandForm, onNew, onEd
               </select>
             </div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+          <div style={{marginTop:8}} />
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}} className="two-col">
             <LabelTA label="Mechanism / Point of Difference" placeholder="What makes this product uniquely work? e.g. Ceramide complex rebuilds the skin barrier from within — unlike surface moisturisers." value={brandForm.mechanism} onChange={set("mechanism")} />
             <LabelTA label="Key Result + Timeframe" placeholder="What's the #1 result customers get, and how fast? e.g. Visible reduction in redness within 7 days." value={brandForm.keyResult} onChange={set("keyResult")} />
             <LabelTA label="What Customers Tried Before (The Villain)" placeholder="What failed alternatives did they use? e.g. Expensive clinic treatments, drugstore creams, cutting out foods — nothing worked long-term." value={brandForm.failedAlternatives} onChange={set("failedAlternatives")} />
             <LabelTA label="#1 Customer Objection" placeholder="What's the biggest reason someone hesitates to buy? e.g. Worried it won't work for sensitive skin." value={brandForm.mainObjection} onChange={set("mainObjection")} />
           </div>
           <SD title="💎 Proof & Credibility" subtitle="— real numbers and quotes the AI can use verbatim" />
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}} className="two-col">
             <LabelTA label="Hero Proof" placeholder="Best testimonial, stats, or social proof. e.g. 4,200+ five-star reviews. 'Finally something that actually worked' — Sara, 34." value={brandForm.heroProof} onChange={set("heroProof")} />
             <LabelTA label="Guarantee / Risk Reversal" placeholder="e.g. 60-day money-back guarantee — no questions asked." value={brandForm.guarantee} onChange={set("guarantee")} />
             <LabelTA label="Price & Current Offer" placeholder="e.g. €49. Currently 20% off first order. Bundle: 3 for €99." value={brandForm.priceAndOffer} onChange={set("priceAndOffer")} />
           </div>
           <SD title="🎯 Strategic Intelligence" subtitle="— helps the AI avoid clichés and use authentic angles" />
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}} className="two-col">
             <LabelTA label="Competitor Clichés to Avoid" placeholder="e.g. 'Game-changer', 'Revolutionary', before/after weight loss style, fake doctor endorsements." value={brandForm.competitorCliches} onChange={set("competitorCliches")} />
             <LabelTA label="Founder / Brand Origin Story" placeholder="e.g. Founded by a nurse who struggled with her own skin. Made in Denmark. Family business since 2018." value={brandForm.founderStory} onChange={set("founderStory")} />
           </div>
