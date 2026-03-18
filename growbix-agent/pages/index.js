@@ -488,7 +488,7 @@ For each image, describe what you see and use that to inform the copy — the mo
 
 angle_label = 3-5 words describing the visual and creative approach.
 
-Return ONLY this exact JSON: {"copies":[${",".join(['{"variation":'+ str(i+1) +',"angle_label":"...","headline":"...","body":"..."}' for i in range(len(uploadedImages))])}]}`;
+Return ONLY this exact JSON: {"copies":[${uploadedImages.map((_,i)=>`{"variation":${i+1},"angle_label":"...","headline":"...","body":"..."}`).join(",")}]}`;
     } else {
       userPromptText = `Write 3 distinct written ad copy variations (headline + body). Each must interpret the brief differently.
 
