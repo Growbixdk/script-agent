@@ -1065,24 +1065,40 @@ function AdCopyView({ brand, brief, setBrief, onGenerate, loading, error, copies
 
 // ── Ad Copy Card ──────────────────────────────────────────────────────────────
 function AdCopyCard({ copy, onCopy, compact }) {
-  const [copied, setCopied] = useState(false);
-  function handleCopy() { onCopy(); setCopied(true); setTimeout(()=>setCopied(false),2000); }
+  const [copiedAll, setCopiedAll]         = useState(false);
+  const [copiedHeadline, setCopiedHeadline] = useState(false);
+  const [copiedBody, setCopiedBody]       = useState(false);
+
+  function handleCopyAll()     { onCopy(); setCopiedAll(true);      setTimeout(()=>setCopiedAll(false),2000); }
+  function handleCopyHeadline(){ navigator.clipboard.writeText(copy.headline); setCopiedHeadline(true); setTimeout(()=>setCopiedHeadline(false),2000); }
+  function handleCopyBody()    { navigator.clipboard.writeText(copy.body);     setCopiedBody(true);    setTimeout(()=>setCopiedBody(false),2000); }
+
   return (
     <div className="sc" style={{background:compact?"#fafafa":"#fff",border:`1.5px solid ${compact?"#f0f0f0":"#ebebeb"}`,borderRadius:12,padding:"20px 22px",marginBottom:compact?0:12,transition:"all 0.2s"}}>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
         <div style={{width:28,height:28,background:"#ff5757",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:11,color:"#fff",flexShrink:0}}>V{copy.variation}</div>
         <span style={{flex:1,fontSize:13,fontWeight:700,color:"#222"}}>{copy.angle_label}</span>
-        <button className="cb" style={{padding:"5px 12px",background:"#fff",border:"1.5px solid #dbdbdb",borderRadius:6,color:"#838383",cursor:"pointer",fontSize:11,fontFamily:"inherit",fontWeight:700,transition:"all 0.15s"}} onClick={handleCopy}>
-          {copied?"✓ Copied":"Copy all"}
+        <button className="cb" style={{padding:"5px 12px",background:"#fff",border:"1.5px solid #dbdbdb",borderRadius:6,color:"#838383",cursor:"pointer",fontSize:11,fontFamily:"inherit",fontWeight:700,transition:"all 0.15s"}} onClick={handleCopyAll}>
+          {copiedAll?"✓ Copied":"Copy all"}
         </button>
       </div>
       <div style={{marginBottom:14}}>
-        <div style={{fontSize:10,fontWeight:800,letterSpacing:"0.12em",color:"#ff5757",marginBottom:6}}>HEADLINE</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+          <div style={{fontSize:10,fontWeight:800,letterSpacing:"0.12em",color:"#ff5757"}}>HEADLINE</div>
+          <button className="cb" style={{padding:"3px 10px",background:"#fff",border:"1.5px solid #dbdbdb",borderRadius:5,color:"#838383",cursor:"pointer",fontSize:10,fontFamily:"inherit",fontWeight:700,transition:"all 0.15s"}} onClick={handleCopyHeadline}>
+            {copiedHeadline?"✓":"Copy"}
+          </button>
+        </div>
         <div style={{fontSize:18,fontWeight:900,color:"#222",lineHeight:1.3,letterSpacing:"-0.02em"}}>{copy.headline}</div>
       </div>
       <div>
-        <div style={{fontSize:10,fontWeight:800,letterSpacing:"0.12em",color:"#ff5757",marginBottom:6}}>BODY</div>
-        <div style={{fontSize:13,color:"#5c5c5c",lineHeight:1.75}}>{copy.body}</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+          <div style={{fontSize:10,fontWeight:800,letterSpacing:"0.12em",color:"#ff5757"}}>BODY</div>
+          <button className="cb" style={{padding:"3px 10px",background:"#fff",border:"1.5px solid #dbdbdb",borderRadius:5,color:"#838383",cursor:"pointer",fontSize:10,fontFamily:"inherit",fontWeight:700,transition:"all 0.15s"}} onClick={handleCopyBody}>
+            {copiedBody?"✓":"Copy"}
+          </button>
+        </div>
+        <div style={{fontSize:13,color:"#5c5c5c",lineHeight:1.75,whiteSpace:"pre-line"}}>{copy.body}</div>
       </div>
     </div>
   );
