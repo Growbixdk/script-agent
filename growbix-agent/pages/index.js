@@ -71,7 +71,7 @@ const defaultBrands = [
     valueProposition: "The only skincare brand built around ceramide science for sensitive skin",
     audience: "Women 25-40 who struggle with redness and irritation",
     tone: "Warm, trustworthy, science-backed but approachable",
-    products: [{ id: "1", title: "Ceramide Repair Serum", url: "" }],
+    products: [{ id: "1", title: "Ceramide Repair Serum", url: "", mechanism: "", keyResult: "", failedAlternatives: "", mainObjection: "" }],
     trustpilotUrl: "",
     notes: "",
     failedAlternatives: "",
@@ -230,7 +230,7 @@ function App() {
   const [exportState, setExportState]     = useState("idle");        // idle | loading | done | error
   const [exportUrl, setExportUrl]         = useState(null);
   const [editingBrand, setEditingBrand]   = useState(null);
-  const [brandForm, setBrandForm]         = useState({ name:"", valueProposition:"", audience:"", tone:"", products:[{id:"1",title:"",url:""}], trustpilotUrl:"", mechanism:"", keyResult:"", failedAlternatives:"", mainObjection:"", heroProof:"", guarantee:"", competitorCliches:"", founderStory:"", priceAndOffer:"", notes:"" });
+  const [brandForm, setBrandForm]         = useState({ name:"", valueProposition:"", audience:"", tone:"", products:[{id:"1",title:"",url:"",mechanism:"",keyResult:"",failedAlternatives:"",mainObjection:""}], shopUrl:"", trustpilotUrl:"", mechanism:"", keyResult:"", failedAlternatives:"", mainObjection:"", heroProof:"", guarantee:"", competitorCliches:"", founderStory:"", priceAndOffer:"", notes:"" });
   const [selectedProductIdx, setSelectedProductIdx] = useState(0);
 
   useEffect(() => { saveBrands(brands); }, [brands]);
@@ -265,7 +265,7 @@ function App() {
     setError(""); setLoading(true); setScripts(null); setFetchStatus(null);
 
     const activeProduct = (selectedBrand.products && selectedBrand.products.length > 0) ? selectedBrand.products[0] : null;
-    const websiteUrl = activeProduct?.url || selectedBrand.websiteUrl || "";
+    const websiteUrl = activeProduct?.url || selectedBrand.shopUrl || selectedBrand.websiteUrl || "";
 
     const websiteContent = websiteUrl
       ? await fetchUrlContent(websiteUrl, "Visit this product/brand website and extract: product descriptions, key benefits, USPs, pricing if shown, and any notable claims.")
@@ -280,7 +280,14 @@ function App() {
     });
 
     const productsContext = selectedBrand.products && selectedBrand.products.length > 0
-      ? selectedBrand.products.filter(p=>p.title).map(p=>`  - ${p.title}${p.url ? ` (${p.url})` : ""}`).join("\n")
+      ? selectedBrand.products.filter(p=>p.title).map(p=>{
+          const lines = [`  Product: ${p.title}${p.url ? ` (${p.url})` : ""}`];
+          if(p.mechanism) lines.push(`    Mechanism: ${p.mechanism}`);
+          if(p.keyResult) lines.push(`    Key result: ${p.keyResult}`);
+          if(p.failedAlternatives) lines.push(`    Villain (what they tried before): ${p.failedAlternatives}`);
+          if(p.mainObjection) lines.push(`    #1 objection: ${p.mainObjection}`);
+          return lines.join("\n");
+        }).join("\n")
       : "";
 
     const brandContext = [
@@ -288,11 +295,11 @@ function App() {
       productsContext && `- Products:\n${productsContext}`,
       `- Target Audience: ${selectedBrand.audience}`,
       `- Tone of Voice: ${selectedBrand.tone}`,
-      selectedBrand.mechanism        && `- Mechanism / Point of difference: ${selectedBrand.mechanism}`,
-      selectedBrand.keyResult        && `- Key result + timeframe: ${selectedBrand.keyResult}`,
+      selectedBrand.mechanism        && `- Brand-level mechanism: ${selectedBrand.mechanism}`,
+      selectedBrand.keyResult        && `- Brand-level key result: ${selectedBrand.keyResult}`,
       selectedBrand.priceAndOffer    && `- Price & current offer: ${selectedBrand.priceAndOffer}`,
-      selectedBrand.failedAlternatives && `- What customers tried before (the villain): ${selectedBrand.failedAlternatives}`,
-      selectedBrand.mainObjection    && `- #1 customer objection to overcome: ${selectedBrand.mainObjection}`,
+      selectedBrand.failedAlternatives && `- Brand-level villain: ${selectedBrand.failedAlternatives}`,
+      selectedBrand.mainObjection    && `- Brand-level #1 objection: ${selectedBrand.mainObjection}`,
       selectedBrand.heroProof        && `- Hero proof (numbers, testimonials): ${selectedBrand.heroProof}`,
       selectedBrand.guarantee        && `- Guarantee / risk reversal: ${selectedBrand.guarantee}`,
       selectedBrand.founderStory     && `- Founder / brand story: ${selectedBrand.founderStory}`,
@@ -328,6 +335,8 @@ RULES:
 - No cliché transitions: "That's when I discovered", "Here's the thing", "And the best part"
 - No rhetorical question hooks. No three-part list rhythm.
 - Write like a real specific person speaks — uneven, natural, unrehearsed.
+- Emojis are allowed and encouraged where they feel natural and add energy — use them sparingly at sentence starts or to punctuate key points.
+- Use line breaks (\n) between sentences where a natural pause would occur in speech — this improves readability in the final ad.
 - Output ONLY valid JSON. No markdown, no preamble.`;
 
     const userPrompt = `Write 3 UGC ad script variations for the following brief. Each variation must be GENUINELY distinct — different hook type, different villain, different narrative angle, different entry point into the desire. They should not feel like the same script reworded.
@@ -406,7 +415,7 @@ Return ONLY this exact JSON, nothing else:
 
     const products = selectedBrand.products || [];
     const activeProduct = products.find(p => p.id === adCopyBrief.selectedProductId) || products[0] || null;
-    const adWebsiteUrl = activeProduct?.url || selectedBrand.websiteUrl || "";
+    const adWebsiteUrl = activeProduct?.url || selectedBrand.shopUrl || selectedBrand.websiteUrl || "";
 
     const websiteContent = adWebsiteUrl
       ? await fetchUrlContent(adWebsiteUrl, "Visit this product/brand website and extract: product descriptions, key benefits, USPs, pricing if shown, and any notable claims.")
@@ -420,19 +429,26 @@ Return ONLY this exact JSON, nothing else:
       trustpilot: selectedBrand.trustpilotUrl ? (trustpilotContent ? "\u2713 fetched" : "\u26a0 unavailable") : "\u2014",
     });
 
-    const adProductsContext = products.filter(p=>p.title).map(p=>`  - ${p.title}${p.url ? ` (${p.url})` : ""}`).join("\n");
+    const adProductsContext = products.filter(p=>p.title).map(p=>{
+      const lines = [`  Product: ${p.title}${p.url ? ` (${p.url})` : ""}`];
+      if(p.mechanism) lines.push(`    Mechanism: ${p.mechanism}`);
+      if(p.keyResult) lines.push(`    Key result: ${p.keyResult}`);
+      if(p.failedAlternatives) lines.push(`    Villain: ${p.failedAlternatives}`);
+      if(p.mainObjection) lines.push(`    #1 objection: ${p.mainObjection}`);
+      return lines.join("\n");
+    }).join("\n");
 
     const brandContext = [
       `- Brand value proposition: ${selectedBrand.valueProposition || selectedBrand.product || ""}`,
       adProductsContext && `- Products:\n${adProductsContext}`,
       activeProduct?.title && `- Product being advertised: ${activeProduct.title}`,
+      activeProduct?.mechanism && `- This product mechanism: ${activeProduct.mechanism}`,
+      activeProduct?.keyResult && `- This product key result: ${activeProduct.keyResult}`,
+      activeProduct?.failedAlternatives && `- This product villain: ${activeProduct.failedAlternatives}`,
+      activeProduct?.mainObjection && `- This product #1 objection: ${activeProduct.mainObjection}`,
       `- Target Audience: ${selectedBrand.audience}`,
       `- Tone of Voice: ${selectedBrand.tone}`,
-      selectedBrand.mechanism         && `- Mechanism / Point of difference: ${selectedBrand.mechanism}`,
-      selectedBrand.keyResult         && `- Key result + timeframe: ${selectedBrand.keyResult}`,
       selectedBrand.priceAndOffer     && `- Price & current offer: ${selectedBrand.priceAndOffer}`,
-      selectedBrand.failedAlternatives && `- What customers tried before (the villain): ${selectedBrand.failedAlternatives}`,
-      selectedBrand.mainObjection     && `- #1 customer objection: ${selectedBrand.mainObjection}`,
       selectedBrand.heroProof         && `- Hero proof: ${selectedBrand.heroProof}`,
       selectedBrand.guarantee         && `- Guarantee / risk reversal: ${selectedBrand.guarantee}`,
       selectedBrand.founderStory      && `- Founder / brand story: ${selectedBrand.founderStory}`,
@@ -470,6 +486,8 @@ RULES:
 - No clichés: "That's why", "Here's the thing", "The truth is", "And the best part"
 - No rhetorical questions. No three-part list rhythm. No passive hedging.
 - Write like 1960s Ogilvy print ads — direct, confident, specific, human prose rhythm.
+- Emojis are allowed and encouraged where they feel natural — use them at sentence starts or to punctuate key claims.
+- Use line breaks (\n) between sentences or paragraphs where a natural reading pause occurs — this improves readability in the feed.
 - Output ONLY valid JSON. No markdown, no preamble.`;
 
     let userPromptText;
@@ -586,7 +604,7 @@ Return ONLY this exact JSON, nothing else:
   // ── Brand CRUD ───────────────────────────────────────────────────────────
   const emptyBrandForm = { name:"", valueProposition:"", audience:"", tone:"", products:[{id:"1",title:"",url:""}], trustpilotUrl:"", mechanism:"", keyResult:"", failedAlternatives:"", mainObjection:"", heroProof:"", guarantee:"", competitorCliches:"", founderStory:"", priceAndOffer:"", notes:"" };
   function openNewBrand()  { setEditingBrand("new"); setSelectedProductIdx(0); setBrandForm(emptyBrandForm); }
-  function openEditBrand(b){ setEditingBrand(b.id); setSelectedProductIdx(0); setBrandForm({ name:b.name, valueProposition:b.valueProposition||b.product||"", audience:b.audience, tone:b.tone, products:b.products||[{id:"1",title:"",url:b.websiteUrl||""}], trustpilotUrl:b.trustpilotUrl||"", mechanism:b.mechanism||"", keyResult:b.keyResult||"", failedAlternatives:b.failedAlternatives||"", mainObjection:b.mainObjection||"", heroProof:b.heroProof||"", guarantee:b.guarantee||"", competitorCliches:b.competitorCliches||"", founderStory:b.founderStory||"", priceAndOffer:b.priceAndOffer||"", notes:b.notes||"" }); }
+  function openEditBrand(b){ setEditingBrand(b.id); setSelectedProductIdx(0); setBrandForm({ name:b.name, valueProposition:b.valueProposition||b.product||"", audience:b.audience, tone:b.tone, products:(b.products||[{id:"1",title:"",url:b.websiteUrl||""}]).map(p=>({mechanism:"",keyResult:"",failedAlternatives:"",mainObjection:"",...p})), shopUrl:b.shopUrl||"", trustpilotUrl:b.trustpilotUrl||"", mechanism:b.mechanism||"", keyResult:b.keyResult||"", failedAlternatives:b.failedAlternatives||"", mainObjection:b.mainObjection||"", heroProof:b.heroProof||"", guarantee:b.guarantee||"", competitorCliches:b.competitorCliches||"", founderStory:b.founderStory||"", priceAndOffer:b.priceAndOffer||"", notes:b.notes||"" }); }
   function saveBrand() {
     if (!brandForm.name.trim()) return;
     if (editingBrand === "new") {
@@ -1118,9 +1136,31 @@ function BrandsView({ brands, editingBrand, brandForm, setBrandForm, onNew, onEd
                       onChange={e=>setBrandForm(f=>({...f,products:f.products.map((p,i)=>i===idx?{...p,url:e.target.value}:p)}))} />
                   </div>
                 </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:4}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    <label style={{fontSize:11,fontWeight:800,color:"#414141",textTransform:"uppercase",letterSpacing:"0.08em"}}>Mechanism</label>
+                    <textarea style={{...TA,minHeight:60,fontSize:12}} placeholder="What makes this product uniquely work?" value={prod.mechanism||""}
+                      onChange={e=>setBrandForm(f=>({...f,products:f.products.map((p,i)=>i===idx?{...p,mechanism:e.target.value}:p)}))} />
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    <label style={{fontSize:11,fontWeight:800,color:"#414141",textTransform:"uppercase",letterSpacing:"0.08em"}}>Key Result + Timeframe</label>
+                    <textarea style={{...TA,minHeight:60,fontSize:12}} placeholder="e.g. Visible reduction in redness within 7 days." value={prod.keyResult||""}
+                      onChange={e=>setBrandForm(f=>({...f,products:f.products.map((p,i)=>i===idx?{...p,keyResult:e.target.value}:p)}))} />
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    <label style={{fontSize:11,fontWeight:800,color:"#414141",textTransform:"uppercase",letterSpacing:"0.08em"}}>What Customers Tried Before</label>
+                    <textarea style={{...TA,minHeight:60,fontSize:12}} placeholder="Failed alternatives — the villain." value={prod.failedAlternatives||""}
+                      onChange={e=>setBrandForm(f=>({...f,products:f.products.map((p,i)=>i===idx?{...p,failedAlternatives:e.target.value}:p)}))} />
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    <label style={{fontSize:11,fontWeight:800,color:"#414141",textTransform:"uppercase",letterSpacing:"0.08em"}}>#1 Customer Objection</label>
+                    <textarea style={{...TA,minHeight:60,fontSize:12}} placeholder="Biggest reason someone hesitates to buy." value={prod.mainObjection||""}
+                      onChange={e=>setBrandForm(f=>({...f,products:f.products.map((p,i)=>i===idx?{...p,mainObjection:e.target.value}:p)}))} />
+                  </div>
+                </div>
               </div>
             ))}
-            <button onClick={()=>setBrandForm(f=>({...f,products:[...(f.products||[]),{id:Date.now().toString(),title:"",url:""}]}))}
+            <button onClick={()=>setBrandForm(f=>({...f,products:[...(f.products||[]),{id:Date.now().toString(),title:"",url:"",mechanism:"",keyResult:"",failedAlternatives:"",mainObjection:""}]}))}
               style={{padding:"9px 16px",background:"#fff",border:"1.5px dashed #dbdbdb",borderRadius:8,color:"#838383",fontWeight:700,fontSize:12,fontFamily:"inherit",cursor:"pointer",textAlign:"left"}}>
               + Add another product
             </button>
@@ -1156,7 +1196,8 @@ function BrandsView({ brands, editingBrand, brandForm, setBrandForm, onNew, onEd
             <LabelTA label="Founder / Brand Origin Story" placeholder="e.g. Founded by a nurse who struggled with her own skin. Made in Denmark. Family business since 2018." value={brandForm.founderStory} onChange={set("founderStory")} />
           </div>
           <SD title="🔗 Reference Links" subtitle="— fetched automatically during generation" />
-          <div style={{display:"grid",gridTemplateColumns:"1fr",gap:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}} className="two-col">
+            <LabelInput label="🌐 Shop URL" placeholder="https://yourbrand.com" value={brandForm.shopUrl||""} onChange={set("shopUrl")} />
             <LabelInput label="⭐ Trustpilot URL" placeholder="https://trustpilot.com/review/yourbrand.com" value={brandForm.trustpilotUrl} onChange={set("trustpilotUrl")} />
           </div>
           <SD title="📝 Account Manager Notes" subtitle="— paste links, winning hooks, platform observations" />
