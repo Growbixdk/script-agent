@@ -107,7 +107,7 @@ const AD_LENGTHS = ["15 seconds","30 seconds","60 seconds","90 seconds"];
 const KPIS       = ["ROAS","CPA","CPL","CTR","Reach / CPM"];
 
 // ── Ad Copy specific ─────────────────────────────────────────────────────────
-const AWARENESS  = ["Unaware — feels pain, no solution sought","Problem-aware — knows they have a problem","Solution-aware — comparing options","Product-aware — knows us, not convinced","Most aware — ready to buy, needs a nudge"];
+const AWARENESS  = ["Unaware — feels pain, no solution sought","Problem/Solution aware — knows they have a problem and is comparing options"];
 const HEADLINE_T = ["Benefit-led — specific result promised","News — 'Introducing / New / Finally'","Curiosity — open loop, tension","How-to — practical promise","Command — strong imperative","Social proof — number or name leads"];
 const PLACEMENT  = ["Meta Feed (image/carousel)","Meta Stories / Reels","Google Display","Email subject + preview","SMS / push notification","Landing page hero"];
 const DESIRED_ACT= ["Buy now / Add to cart","Click to learn more","Sign up / Register","Claim offer / Redeem","Book a call / Demo","Download / Get free resource"];
@@ -216,7 +216,7 @@ function App() {
   const [brands, setBrands]               = useState(loadBrands);
   const [selectedBrandId, setSelectedBrandId] = useState(loadBrands()[0]?.id || "");
   const [brief, setBrief] = useState({ goal:"", angle:"", emotion:"", audienceStage:"", adFormat:"", adLength:"", funnelStage:"", kpi:"", activeOffer:"", extra:"" });
-  const [adCopyBrief, setAdCopyBrief] = useState({ title:"", selectedProductId:"", awarenessLevel:"", dominantClaim:"", headlineType:"", activeOffer:"", extra:"", language:"Danish" });
+  const [adCopyBrief, setAdCopyBrief] = useState({ title:"", selectedProductId:"", awarenessLevel:"", angle:"", description:"", activeOffer:"", extra:"", language:"Danish" });
   const [uploadedImages, setUploadedImages] = useState([]);
   const [scripts, setScripts]             = useState(null);
   const [adCopies, setAdCopies]           = useState(null);
@@ -282,7 +282,7 @@ function App() {
     const productsContext = selectedBrand.products && selectedBrand.products.length > 0
       ? selectedBrand.products.filter(p=>p.title).map(p=>{
           const lines = [`  Product: ${p.title}${p.url ? ` (${p.url})` : ""}`];
-          if(p.mechanism) lines.push(`    Mechanism: ${p.mechanism}`);
+          if(p.mechanism) lines.push(`    USPs: ${p.mechanism}`);
           if(p.keyResult) lines.push(`    Key result: ${p.keyResult}`);
           if(p.failedAlternatives) lines.push(`    Villain (what they tried before): ${p.failedAlternatives}`);
           if(p.mainObjection) lines.push(`    #1 objection: ${p.mainObjection}`);
@@ -295,9 +295,9 @@ function App() {
       productsContext && `- Products:\n${productsContext}`,
       `- Target Audience: ${selectedBrand.audience}`,
       `- Tone of Voice: ${selectedBrand.tone}`,
-      selectedBrand.mechanism        && `- Brand-level mechanism: ${selectedBrand.mechanism}`,
+      selectedBrand.mechanism        && `- Brand-level USPs: ${selectedBrand.mechanism}`,
       selectedBrand.keyResult        && `- Brand-level key result: ${selectedBrand.keyResult}`,
-      selectedBrand.priceAndOffer    && `- Price & current offer: ${selectedBrand.priceAndOffer}`,
+      selectedBrand.priceAndOffer    && `- Evergreen offer: ${selectedBrand.priceAndOffer}`,
       selectedBrand.failedAlternatives && `- Brand-level villain: ${selectedBrand.failedAlternatives}`,
       selectedBrand.mainObjection    && `- Brand-level #1 objection: ${selectedBrand.mainObjection}`,
       selectedBrand.heroProof        && `- Hero proof (numbers, testimonials): ${selectedBrand.heroProof}`,
@@ -410,7 +410,7 @@ Return ONLY this exact JSON, nothing else:
   // ── Generate Ad Copy ─────────────────────────────────────────────────────
   async function generateAdCopy() {
     if (!selectedBrand) return setAdCopyError("Select a brand first.");
-    if (!adCopyBrief.awarenessLevel || !adCopyBrief.dominantClaim || !adCopyBrief.headlineType) return setAdCopyError("Please fill in awareness level, dominant claim, and headline type.");
+    if (!adCopyBrief.awarenessLevel || !adCopyBrief.angle) return setAdCopyError("Please fill in awareness level and angle.");
     setAdCopyError(""); setAdCopyLoading(true); setAdCopies(null); setAdCopyFetchStatus(null);
 
     const products = selectedBrand.products || [];
@@ -431,7 +431,7 @@ Return ONLY this exact JSON, nothing else:
 
     const adProductsContext = products.filter(p=>p.title).map(p=>{
       const lines = [`  Product: ${p.title}${p.url ? ` (${p.url})` : ""}`];
-      if(p.mechanism) lines.push(`    Mechanism: ${p.mechanism}`);
+      if(p.mechanism) lines.push(`    USPs: ${p.mechanism}`);
       if(p.keyResult) lines.push(`    Key result: ${p.keyResult}`);
       if(p.failedAlternatives) lines.push(`    Villain: ${p.failedAlternatives}`);
       if(p.mainObjection) lines.push(`    #1 objection: ${p.mainObjection}`);
@@ -442,13 +442,13 @@ Return ONLY this exact JSON, nothing else:
       `- Brand value proposition: ${selectedBrand.valueProposition || selectedBrand.product || ""}`,
       adProductsContext && `- Products:\n${adProductsContext}`,
       activeProduct?.title && `- Product being advertised: ${activeProduct.title}`,
-      activeProduct?.mechanism && `- This product mechanism: ${activeProduct.mechanism}`,
+      activeProduct?.mechanism && `- This product USPs: ${activeProduct.mechanism}`,
       activeProduct?.keyResult && `- This product key result: ${activeProduct.keyResult}`,
       activeProduct?.failedAlternatives && `- This product villain: ${activeProduct.failedAlternatives}`,
       activeProduct?.mainObjection && `- This product #1 objection: ${activeProduct.mainObjection}`,
       `- Target Audience: ${selectedBrand.audience}`,
       `- Tone of Voice: ${selectedBrand.tone}`,
-      selectedBrand.priceAndOffer     && `- Price & current offer: ${selectedBrand.priceAndOffer}`,
+      selectedBrand.priceAndOffer     && `- Evergreen offer: ${selectedBrand.priceAndOffer}`,
       selectedBrand.heroProof         && `- Hero proof: ${selectedBrand.heroProof}`,
       selectedBrand.guarantee         && `- Guarantee / risk reversal: ${selectedBrand.guarantee}`,
       selectedBrand.founderStory      && `- Founder / brand story: ${selectedBrand.founderStory}`,
@@ -496,10 +496,10 @@ RULES:
 
 BRIEF:
 - Audience awareness level: ${adCopyBrief.awarenessLevel}
-- The one dominant claim: ${adCopyBrief.dominantClaim}
-- Headline type: ${adCopyBrief.headlineType}
+- Ad angle: ${adCopyBrief.angle}
 - Language: ${language}
 ${adCopyBrief.activeOffer ? `- Active offer: ${adCopyBrief.activeOffer}` : ""}
+${adCopyBrief.description ? `- Description: ${adCopyBrief.description}` : ""}
 ${adCopyBrief.extra ? `- Direction: ${adCopyBrief.extra}` : ""}
 
 For each image, describe what you see and use that to inform the copy — the mood, product, visual cues, setting, colours, and style should all shape the headline and body.
@@ -512,10 +512,10 @@ Return ONLY this exact JSON: {"copies":[${uploadedImages.map((_,i)=>`{"variation
 
 BRIEF:
 - Audience awareness level: ${adCopyBrief.awarenessLevel}
-- The one dominant claim this ad must make: ${adCopyBrief.dominantClaim}
-- Headline type: ${adCopyBrief.headlineType}
+- Ad angle: ${adCopyBrief.angle}
 - Language: ${language}
 ${adCopyBrief.activeOffer ? `- Active offer / promotion: ${adCopyBrief.activeOffer}` : ""}
+${adCopyBrief.description ? `- Description: ${adCopyBrief.description}` : ""}
 ${adCopyBrief.extra ? `- Additional context / angle direction: ${adCopyBrief.extra}` : ""}
 
 V1: Lead with RESULT or MECHANISM. V2: Lead with PROBLEM or VILLAIN. V3: Lead with SOCIAL PROOF or SPECIFICITY.
@@ -563,11 +563,10 @@ Return ONLY this exact JSON, nothing else:
         type: "adcopy",
         brief: {
           title: adCopyBrief.title,
-          goal: adCopyBrief.dominantClaim,
-          angle: adCopyBrief.headlineType,
+          goal: adCopyBrief.angle,
+          angle: adCopyBrief.angle,
           awarenessLevel: adCopyBrief.awarenessLevel,
-          dominantClaim: adCopyBrief.dominantClaim,
-          headlineType: adCopyBrief.headlineType,
+          description: adCopyBrief.description,
           language: language,
           selectedProductId: adCopyBrief.selectedProductId,
           activeOffer: adCopyBrief.activeOffer,
@@ -839,7 +838,7 @@ function HistoryView({ brand, history, onDelete, onExport, exportState, exportUr
                   )}
                   <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>
                     {isAdCopy
-                      ? [entry.brief.language, entry.brief.awarenessLevel?.split("—")[0]?.trim(), entry.brief.headlineType?.split("—")[0]?.trim(), entry.brief.imageCount > 0 ? `${entry.brief.imageCount} images` : null].filter(Boolean).map(tag=>(
+                      ? [entry.brief.language, entry.brief.awarenessLevel?.split("—")[0]?.trim(), entry.brief.angle?.slice(0,30), entry.brief.imageCount > 0 ? `${entry.brief.imageCount} images` : null].filter(Boolean).map(tag=>(
                           <span key={tag} style={{fontSize:10,fontWeight:700,padding:"2px 8px",background:"#f4f4f4",borderRadius:20,color:"#5c5c5c"}}>{tag}</span>
                         ))
                       : [entry.brief.goal, entry.brief.audienceStage, entry.brief.angle, entry.brief.emotion].filter(Boolean).map(tag=>(
@@ -996,13 +995,13 @@ function AdCopyView({ brand, brief, setBrief, onGenerate, loading, error, copies
           </div>
         </Field>
 
-        <Field label="The One Dominant Claim">
-          <textarea style={{...TA,minHeight:64}} placeholder="The single irreducible promise this ad must deliver. e.g. 'Ceramide complex repairs the skin barrier in 7 days — proven, not claimed.' Force yourself to write ONE claim only." value={brief.dominantClaim} onChange={e=>setBrief(b=>({...b,dominantClaim:e.target.value}))} />
+        <Field label="ANGLE">
+          <textarea style={{...TA,minHeight:64}} placeholder="The angle of this ad. e.g. 'Ceramide complex repairs the skin barrier in 7 days.'" value={brief.angle} onChange={e=>setBrief(b=>({...b,angle:e.target.value}))} />
           <div style={{fontSize:10,color:"#bcbcbc",fontWeight:600,marginTop:4}}>Ogilvy: every great ad is built on one Big Idea. State it here before generating.</div>
         </Field>
 
-        <Field label="Headline Type">
-          <Pills items={HEADLINE_T} value={brief.headlineType} onChange={v=>setBrief(b=>({...b,headlineType:v}))} />
+        <Field label="Description" optional>
+          <textarea style={{...TA,minHeight:64}} placeholder="Additional context for the ad copy. e.g. Retargeting campaign targeting women 25-40 who visited the product page." value={brief.description||""} onChange={e=>setBrief(b=>({...b,description:e.target.value}))} />
         </Field>
 
         <div style={{height:1,background:"#f0f0f0",margin:"0 0 4px"}} />
@@ -1154,8 +1153,8 @@ function BrandsView({ brands, editingBrand, brandForm, setBrandForm, onNew, onEd
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:4}}>
                   <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                    <label style={{fontSize:11,fontWeight:800,color:"#414141",textTransform:"uppercase",letterSpacing:"0.08em"}}>Mechanism</label>
-                    <textarea style={{...TA,minHeight:60,fontSize:12}} placeholder="What makes this product uniquely work?" value={prod.mechanism||""}
+                    <label style={{fontSize:11,fontWeight:800,color:"#414141",textTransform:"uppercase",letterSpacing:"0.08em"}}>Unique Selling Points</label>
+                    <textarea style={{...TA,minHeight:60,fontSize:12}} placeholder="What makes this product uniquely better than alternatives?" value={prod.mechanism||""}
                       onChange={e=>setBrandForm(f=>({...f,products:f.products.map((p,i)=>i===idx?{...p,mechanism:e.target.value}:p)}))} />
                   </div>
                   <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -1193,18 +1192,12 @@ function BrandsView({ brands, editingBrand, brandForm, setBrandForm, onNew, onEd
               </select>
             </div>
           </div>
-          <div style={{marginTop:8}} />
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}} className="two-col">
-            <LabelTA label="Mechanism / Point of Difference" placeholder="What makes this product uniquely work? e.g. Ceramide complex rebuilds the skin barrier from within — unlike surface moisturisers." value={brandForm.mechanism} onChange={set("mechanism")} />
-            <LabelTA label="Key Result + Timeframe" placeholder="What's the #1 result customers get, and how fast? e.g. Visible reduction in redness within 7 days." value={brandForm.keyResult} onChange={set("keyResult")} />
-            <LabelTA label="What Customers Tried Before (The Villain)" placeholder="What failed alternatives did they use? e.g. Expensive clinic treatments, drugstore creams, cutting out foods — nothing worked long-term." value={brandForm.failedAlternatives} onChange={set("failedAlternatives")} />
-            <LabelTA label="#1 Customer Objection" placeholder="What's the biggest reason someone hesitates to buy? e.g. Worried it won't work for sensitive skin." value={brandForm.mainObjection} onChange={set("mainObjection")} />
-          </div>
+
           <SD title="💎 Proof & Credibility" subtitle="— real numbers and quotes the AI can use verbatim" />
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}} className="two-col">
             <LabelTA label="Hero Proof" placeholder="Best testimonial, stats, or social proof. e.g. 4,200+ five-star reviews. 'Finally something that actually worked' — Sara, 34." value={brandForm.heroProof} onChange={set("heroProof")} />
             <LabelTA label="Guarantee / Risk Reversal" placeholder="e.g. 60-day money-back guarantee — no questions asked." value={brandForm.guarantee} onChange={set("guarantee")} />
-            <LabelTA label="Price & Current Offer" placeholder="e.g. €49. Currently 20% off first order. Bundle: 3 for €99." value={brandForm.priceAndOffer} onChange={set("priceAndOffer")} />
+            <LabelTA label="Evergreen Offer" placeholder="e.g. €49. Free shipping. Bundle: 3 for €99." value={brandForm.priceAndOffer} onChange={set("priceAndOffer")} />
           </div>
           <SD title="🎯 Strategic Intelligence" subtitle="— helps the AI avoid clichés and use authentic angles" />
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}} className="two-col">
@@ -1219,7 +1212,7 @@ function BrandsView({ brands, editingBrand, brandForm, setBrandForm, onNew, onEd
           <SD title="📝 Account Manager Notes" subtitle="— paste links, winning hooks, platform observations" />
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
             <label style={{fontSize:11,fontWeight:800,color:"#414141",textTransform:"uppercase",letterSpacing:"0.08em"}}>Notes</label>
-            <textarea style={{...TA,minHeight:70}} placeholder="e.g. Best performing ad uses before/after hook. https://fb.com/ads/example. Avoid aggressive discount angles." value={brandForm.notes} onChange={set("notes")} />
+            <textarea style={{...TA,minHeight:70}} placeholder="Brand guides, articles, performing ad links." value={brandForm.notes} onChange={set("notes")} />
             {brandForm.notes && (() => {
               const urls = brandForm.notes.match(/https?:\/\/[^\s]+/g);
               return urls ? (
