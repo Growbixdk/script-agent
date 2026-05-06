@@ -4,9 +4,6 @@ export default async function handler(req, res) {
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  console.log("API key present:", !!apiKey);
-  console.log("API key prefix:", apiKey ? apiKey.slice(0, 14) : "MISSING");
-
   if (!apiKey) {
     return res.status(500).json({ error: "ANTHROPIC_API_KEY is not set on the server." });
   }
@@ -20,7 +17,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log("Calling Anthropic API...");
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -32,12 +28,22 @@ export default async function handler(req, res) {
       body: JSON.stringify(req.body),
     });
 
-    console.log("Anthropic response status:", response.status);
-    const data = await response.json();
-    console.log("Anthropic error field:", data.error || "none");
-    return res.status(response.status).json(data);
+    const text = await response.text();
+
+    // Truncate if over 3MB to avoid Vercel's 4.5MB body limit
+    const safe = text.length > 3_000_000 ? text.slice(0, 3_000_000) + '"}]}' : text;
+
+    try {
+      const data = JSON.parse(safe);
+      return res.status(response.status).json(data);
+    } catch {
+      // If truncation broke the JSON, return just the text content we have
+      const match = safe.match(/"text"\s*:\s*"([\s\S]*?)"\s*[,}]/);
+      const extracted = match ? match[1] : "";
+      return res.status(200).json({ content: [{ type: "text", text: extracted }] });
+    }
+
   } catch (err) {
-    console.error("Proxy fetch error:", err.message);
     return res.status(500).json({ error: err.message });
   }
 }
