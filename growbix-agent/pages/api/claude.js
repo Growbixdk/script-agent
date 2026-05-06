@@ -1,3 +1,11 @@
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "20mb",
+    },
+  },
+};
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -29,15 +37,12 @@ export default async function handler(req, res) {
     });
 
     const text = await response.text();
-
-    // Truncate if over 3MB to avoid Vercel's 4.5MB body limit
     const safe = text.length > 3_000_000 ? text.slice(0, 3_000_000) + '"}]}' : text;
 
     try {
       const data = JSON.parse(safe);
       return res.status(response.status).json(data);
     } catch {
-      // If truncation broke the JSON, return just the text content we have
       const match = safe.match(/"text"\s*:\s*"([\s\S]*?)"\s*[,}]/);
       const extracted = match ? match[1] : "";
       return res.status(200).json({ content: [{ type: "text", text: extracted }] });
