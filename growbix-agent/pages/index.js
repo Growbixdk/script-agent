@@ -216,7 +216,7 @@ function App() {
   const [brands, setBrands]               = useState(loadBrands);
   const [selectedBrandId, setSelectedBrandId] = useState(loadBrands()[0]?.id || "");
   const [brief, setBrief] = useState({ goal:"", angle:"", emotion:"", audienceStage:"", adFormat:"", adLength:"", funnelStage:"", kpi:"", activeOffer:"", extra:"" });
-  const [adCopyBrief, setAdCopyBrief] = useState({ title:"", selectedProductId:"", awarenessLevel:"", angle:"", description:"", activeOffer:"", extra:"", language:"Danish" });
+  const [adCopyBrief, setAdCopyBrief] = useState({ title:"", selectedProductId:"", awarenessLevel:"", angle:"", activeOffer:"", extra:"", language:"Danish" });
   const [uploadedImages, setUploadedImages] = useState([]);
   const [scripts, setScripts]             = useState(null);
   const [adCopies, setAdCopies]           = useState(null);
@@ -474,8 +474,9 @@ CORE PRINCIPLES:
 - Ogilvy body: write to one person. Every sentence earns the next. Real customer language and numbers beat creative claims every time. CTA names the action, the reason, and removes friction.
 
 STRUCTURE:
-- Headline: max 8 words. Calibrated to awareness level. Matches requested headline type. No vague superlatives.
+- Headline: max 8 words. Calibrated to awareness level. No vague superlatives.
 - Body: 40-80 words. Opens on desire/pain. Builds: problem -> mechanism -> proof -> emotional payoff -> CTA.
+- Description: 20-30 words. A single punchy sentence used as the Meta Ads description field. Complements the headline, adds a specific benefit or proof point not already in the headline. No CTA — the body handles that.
 
 LANGUAGE: Write ALL output copy in ${language}. Headlines, body copy, and CTAs must all be in ${language}. The angle_label field stays in English.
 
@@ -499,14 +500,13 @@ BRIEF:
 - Ad angle: ${adCopyBrief.angle}
 - Language: ${language}
 ${adCopyBrief.activeOffer ? `- Active offer: ${adCopyBrief.activeOffer}` : ""}
-${adCopyBrief.description ? `- Description: ${adCopyBrief.description}` : ""}
 ${adCopyBrief.extra ? `- Direction: ${adCopyBrief.extra}` : ""}
 
 For each image, describe what you see and use that to inform the copy — the mood, product, visual cues, setting, colours, and style should all shape the headline and body.
 
 angle_label = 3-5 words describing the visual and creative approach.
 
-Return ONLY this exact JSON: {"copies":[${uploadedImages.map((_,i)=>`{"variation":${i+1},"angle_label":"...","headline":"...","body":"..."}`).join(",")}]}`;
+Return ONLY this exact JSON: {"copies":[${uploadedImages.map((_,i)=>`{"variation":${i+1},"angle_label":"...","headline":"...","body":"...","description":"..."}`).join(",")}]}`;
     } else {
       userPromptText = `Write 3 distinct written ad copy variations (headline + body). Each must interpret the brief differently.
 
@@ -515,14 +515,13 @@ BRIEF:
 - Ad angle: ${adCopyBrief.angle}
 - Language: ${language}
 ${adCopyBrief.activeOffer ? `- Active offer / promotion: ${adCopyBrief.activeOffer}` : ""}
-${adCopyBrief.description ? `- Description: ${adCopyBrief.description}` : ""}
 ${adCopyBrief.extra ? `- Additional context / angle direction: ${adCopyBrief.extra}` : ""}
 
 V1: Lead with RESULT or MECHANISM. V2: Lead with PROBLEM or VILLAIN. V3: Lead with SOCIAL PROOF or SPECIFICITY.
 angle_label = 3-5 words describing the creative approach.
 
 Return ONLY this exact JSON, nothing else:
-{"copies":[{"variation":1,"angle_label":"...","headline":"...","body":"..."},{"variation":2,"angle_label":"...","headline":"...","body":"..."},{"variation":3,"angle_label":"...","headline":"...","body":"..."}]}`;
+{"copies":[{"variation":1,"angle_label":"...","headline":"...","body":"...","description":"..."},{"variation":2,"angle_label":"...","headline":"...","body":"...","description":"..."},{"variation":3,"angle_label":"...","headline":"...","body":"...","description":"..."}]}`;
     }
 
     let messages;
@@ -566,7 +565,6 @@ Return ONLY this exact JSON, nothing else:
           goal: adCopyBrief.angle,
           angle: adCopyBrief.angle,
           awarenessLevel: adCopyBrief.awarenessLevel,
-          description: adCopyBrief.description,
           language: language,
           selectedProductId: adCopyBrief.selectedProductId,
           activeOffer: adCopyBrief.activeOffer,
@@ -858,7 +856,7 @@ function HistoryView({ brand, history, onDelete, onExport, exportState, exportUr
               {isOpen && (
                 <div className="fi" style={{borderTop:"1px solid #f4f4f4",padding:"16px 22px",display:"flex",flexDirection:"column",gap:12}}>
                   {isAdCopy
-                    ? items.map((c,i)=><AdCopyCard key={i} copy={c} onCopy={()=>navigator.clipboard.writeText(`HEADLINE:\n${c.headline}\n\nBODY:\n${c.body}`)} compact />)
+                    ? items.map((c,i)=><AdCopyCard key={i} copy={c} onCopy={()=>navigator.clipboard.writeText(`HEADLINE:\n${c.headline}\n\nBODY:\n${c.body}${c.description ? `\n\nDESCRIPTION:\n${c.description}` : ``}`)} compact />)
                     : items.map((s,i)=><ScriptCard key={i} script={s} onCopy={()=>onCopy(s)} compact />)
                   }
                 </div>
@@ -1000,9 +998,6 @@ function AdCopyView({ brand, brief, setBrief, onGenerate, loading, error, copies
           <div style={{fontSize:10,color:"#bcbcbc",fontWeight:600,marginTop:4}}>Ogilvy: every great ad is built on one Big Idea. State it here before generating.</div>
         </Field>
 
-        <Field label="Description" optional>
-          <textarea style={{...TA,minHeight:64}} placeholder="Additional context for the ad copy. e.g. Retargeting campaign targeting women 25-40 who visited the product page." value={brief.description||""} onChange={e=>setBrief(b=>({...b,description:e.target.value}))} />
-        </Field>
 
         <div style={{height:1,background:"#f0f0f0",margin:"0 0 4px"}} />
         <div style={{fontSize:10,fontWeight:800,color:"#bcbcbc",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:-10}}>Context</div>
@@ -1064,13 +1059,21 @@ function AdCopyView({ brand, brief, setBrief, onGenerate, loading, error, copies
 
 // ── Ad Copy Card ──────────────────────────────────────────────────────────────
 function AdCopyCard({ copy, onCopy, compact }) {
-  const [copiedAll, setCopiedAll]         = useState(false);
-  const [copiedHeadline, setCopiedHeadline] = useState(false);
-  const [copiedBody, setCopiedBody]       = useState(false);
+  const [copiedAll, setCopiedAll]               = useState(false);
+  const [copiedHeadline, setCopiedHeadline]     = useState(false);
+  const [copiedBody, setCopiedBody]             = useState(false);
+  const [copiedDescription, setCopiedDescription] = useState(false);
 
-  function handleCopyAll()     { onCopy(); setCopiedAll(true);      setTimeout(()=>setCopiedAll(false),2000); }
-  function handleCopyHeadline(){ navigator.clipboard.writeText(copy.headline); setCopiedHeadline(true); setTimeout(()=>setCopiedHeadline(false),2000); }
-  function handleCopyBody()    { navigator.clipboard.writeText(copy.body);     setCopiedBody(true);    setTimeout(()=>setCopiedBody(false),2000); }
+  function handleCopyAll()        { onCopy(); setCopiedAll(true); setTimeout(()=>setCopiedAll(false),2000); }
+  function handleCopyHeadline()   { navigator.clipboard.writeText(copy.headline); setCopiedHeadline(true); setTimeout(()=>setCopiedHeadline(false),2000); }
+  function handleCopyBody()       { navigator.clipboard.writeText(copy.body); setCopiedBody(true); setTimeout(()=>setCopiedBody(false),2000); }
+  function handleCopyDescription(){ navigator.clipboard.writeText(copy.description||""); setCopiedDescription(true); setTimeout(()=>setCopiedDescription(false),2000); }
+
+  const CopyBtn = ({copied, onClick}) => (
+    <button className="cb" style={{padding:"3px 10px",background:"#fff",border:"1.5px solid #dbdbdb",borderRadius:5,color:"#838383",cursor:"pointer",fontSize:10,fontFamily:"inherit",fontWeight:700,transition:"all 0.15s"}} onClick={onClick}>
+      {copied?"✓":"Copy"}
+    </button>
+  );
 
   return (
     <div className="sc" style={{background:compact?"#fafafa":"#fff",border:`1.5px solid ${compact?"#f0f0f0":"#ebebeb"}`,borderRadius:12,padding:"20px 22px",marginBottom:compact?0:12,transition:"all 0.2s"}}>
@@ -1081,24 +1084,32 @@ function AdCopyCard({ copy, onCopy, compact }) {
           {copiedAll?"✓ Copied":"Copy all"}
         </button>
       </div>
+
       <div style={{marginBottom:14}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
           <div style={{fontSize:10,fontWeight:800,letterSpacing:"0.12em",color:"#ff5757"}}>HEADLINE</div>
-          <button className="cb" style={{padding:"3px 10px",background:"#fff",border:"1.5px solid #dbdbdb",borderRadius:5,color:"#838383",cursor:"pointer",fontSize:10,fontFamily:"inherit",fontWeight:700,transition:"all 0.15s"}} onClick={handleCopyHeadline}>
-            {copiedHeadline?"✓":"Copy"}
-          </button>
+          <CopyBtn copied={copiedHeadline} onClick={handleCopyHeadline} />
         </div>
         <div style={{fontSize:18,fontWeight:900,color:"#222",lineHeight:1.3,letterSpacing:"-0.02em"}}>{copy.headline}</div>
       </div>
-      <div>
+
+      <div style={{marginBottom:14}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
           <div style={{fontSize:10,fontWeight:800,letterSpacing:"0.12em",color:"#ff5757"}}>BODY</div>
-          <button className="cb" style={{padding:"3px 10px",background:"#fff",border:"1.5px solid #dbdbdb",borderRadius:5,color:"#838383",cursor:"pointer",fontSize:10,fontFamily:"inherit",fontWeight:700,transition:"all 0.15s"}} onClick={handleCopyBody}>
-            {copiedBody?"✓":"Copy"}
-          </button>
+          <CopyBtn copied={copiedBody} onClick={handleCopyBody} />
         </div>
         <div style={{fontSize:13,color:"#5c5c5c",lineHeight:1.75,whiteSpace:"pre-line"}}>{copy.body}</div>
       </div>
+
+      {copy.description && (
+        <div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+            <div style={{fontSize:10,fontWeight:800,letterSpacing:"0.12em",color:"#ff5757"}}>DESCRIPTION</div>
+            <CopyBtn copied={copiedDescription} onClick={handleCopyDescription} />
+          </div>
+          <div style={{fontSize:13,color:"#5c5c5c",lineHeight:1.6,fontStyle:"italic"}}>{copy.description}</div>
+        </div>
+      )}
     </div>
   );
 }
