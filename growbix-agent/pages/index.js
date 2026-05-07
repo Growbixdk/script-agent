@@ -61,38 +61,46 @@ export default function Page() {
 }
 
 
-const STORAGE_KEY = "growbix_ugc_brands";
 const HISTORY_KEY = "growbix_ugc_history";
 
-const defaultBrands = [
-  {
-    id: "1",
-    name: "Sample Brand",
-    valueProposition: "The only skincare brand built around ceramide science for sensitive skin",
-    audience: "Women 25-40 who struggle with redness and irritation",
-    tone: "Warm, trustworthy, science-backed but approachable",
-    products: [{ id: "1", title: "Ceramide Repair Serum", url: "", mechanism: "", keyResult: "", failedAlternatives: "", mainObjection: "" }],
-    trustpilotUrl: "",
-    notes: "",
-    failedAlternatives: "",
-    mainObjection: "",
-    keyResult: "",
-    mechanism: "",
-    heroProof: "",
-    competitorCliches: "",
-    founderStory: "",
-    priceAndOffer: "",
-  },
-];
+// ── Supabase config ───────────────────────────────────────────────────────────
+const SUPABASE_URL = "https://mepmtaatpctypovdjmnp.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1lcG10YWF0cGN0eXBvdmRqbW5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxNTY0OTYsImV4cCI6MjA5MzczMjQ5Nn0.S4Z2mZyZ7ocqaJDGaEsBxu-e26y_GV1O0B3Q-bUbkw4";
 
-function loadBrands() {
-  try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : defaultBrands; } catch { return defaultBrands; }
+async function fetchBrandsFromDB() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/brands?select=*&order=created_at.asc`, {
+    headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
+  });
+  if (!res.ok) return [];
+  const rows = await res.json();
+  return rows.map(r => ({ id: r.id, ...r.data }));
 }
+
+async function upsertBrandToDB(brand) {
+  const { id, ...rest } = brand;
+  await fetch(`${SUPABASE_URL}/rest/v1/brands`, {
+    method: "POST",
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      "Prefer": "resolution=merge-duplicates",
+    },
+    body: JSON.stringify({ id, name: brand.name, data: rest, updated_at: new Date().toISOString() }),
+  });
+}
+
+async function deleteBrandFromDB(id) {
+  await fetch(`${SUPABASE_URL}/rest/v1/brands?id=eq.${id}`, {
+    method: "DELETE",
+    headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` },
+  });
+}
+
 function loadHistory() {
   try { const r = localStorage.getItem(HISTORY_KEY); return r ? JSON.parse(r) : {}; } catch { return {}; }
 }
 function saveHistory(h) { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); }
-function saveBrands(b) { localStorage.setItem(STORAGE_KEY, JSON.stringify(b)); }
 
 const GOALS      = ["Drive purchase","Build awareness","Get sign-ups","Retarget warm audience","Boost social proof"];
 const ANGLES     = ["Problem → Solution","Before & After","Social proof","Founder story","Myth busting","Tutorial/How-to","Unboxing/reveal"];
@@ -213,8 +221,9 @@ async function exportToDocx(brandName, history) {
 // ── App ──────────────────────────────────────────────────────────────────────
 function App() {
   const [view, setView]                   = useState("generate");
-  const [brands, setBrands]               = useState(loadBrands);
-  const [selectedBrandId, setSelectedBrandId] = useState(loadBrands()[0]?.id || "");
+  const [brands, setBrands]               = useState([]);
+  const [selectedBrandId, setSelectedBrandId] = useState("");
+  const [brandsLoading, setBrandsLoading]   = useState(true);
   const [brief, setBrief] = useState({ goal:"", angle:"", emotion:"", audienceStage:"", adFormat:"", adLength:"", funnelStage:"", kpi:"", activeOffer:"", extra:"" });
   const [adCopyBrief, setAdCopyBrief] = useState({ title:"", selectedProductId:"", awarenessLevel:"", angle:"", activeOffer:"", extra:"", language:"Danish" });
   const [uploadedImages, setUploadedImages] = useState([]);
@@ -233,7 +242,15 @@ function App() {
   const [brandForm, setBrandForm]         = useState({ name:"", valueProposition:"", audience:"", tone:"", products:[{id:"1",title:"",url:"",mechanism:"",keyResult:"",failedAlternatives:"",mainObjection:""}], shopUrl:"", trustpilotUrl:"", mechanism:"", keyResult:"", failedAlternatives:"", mainObjection:"", heroProof:"", guarantee:"", competitorCliches:"", founderStory:"", priceAndOffer:"", notes:"" });
   const [selectedProductIdx, setSelectedProductIdx] = useState(0);
 
-  useEffect(() => { saveBrands(brands); }, [brands]);
+  // Load brands from Supabase on mount
+  useEffect(() => {
+    setBrandsLoading(true);
+    fetchBrandsFromDB().then(loaded => {
+      setBrands(loaded);
+      if (loaded.length > 0) setSelectedBrandId(loaded[0].id);
+      setBrandsLoading(false);
+    }).catch(() => setBrandsLoading(false));
+  }, []);
   useEffect(() => { saveHistory(history); }, [history]);
 
   const selectedBrand = brands.find(b => b.id === selectedBrandId);
@@ -602,18 +619,22 @@ Return ONLY this exact JSON, nothing else:
   const emptyBrandForm = { name:"", valueProposition:"", audience:"", tone:"", products:[{id:"1",title:"",url:""}], trustpilotUrl:"", mechanism:"", keyResult:"", failedAlternatives:"", mainObjection:"", heroProof:"", guarantee:"", competitorCliches:"", founderStory:"", priceAndOffer:"", notes:"" };
   function openNewBrand()  { setEditingBrand("new"); setSelectedProductIdx(0); setBrandForm(emptyBrandForm); }
   function openEditBrand(b){ setEditingBrand(b.id); setSelectedProductIdx(0); setBrandForm({ name:b.name, valueProposition:b.valueProposition||b.product||"", audience:b.audience, tone:b.tone, products:(b.products||[{id:"1",title:"",url:b.websiteUrl||""}]).map(p=>({mechanism:"",keyResult:"",failedAlternatives:"",mainObjection:"",...p})), shopUrl:b.shopUrl||"", trustpilotUrl:b.trustpilotUrl||"", mechanism:b.mechanism||"", keyResult:b.keyResult||"", failedAlternatives:b.failedAlternatives||"", mainObjection:b.mainObjection||"", heroProof:b.heroProof||"", guarantee:b.guarantee||"", competitorCliches:b.competitorCliches||"", founderStory:b.founderStory||"", priceAndOffer:b.priceAndOffer||"", notes:b.notes||"" }); }
-  function saveBrand() {
+  async function saveBrand() {
     if (!brandForm.name.trim()) return;
     if (editingBrand === "new") {
       const nb = { ...brandForm, id: Date.now().toString() };
       setBrands(p => { const u=[...p,nb]; setSelectedBrandId(nb.id); return u; });
+      await upsertBrandToDB(nb);
     } else {
+      const updated = {...brandForm, id: editingBrand};
       setBrands(p => p.map(b => b.id===editingBrand ? {...b,...brandForm} : b));
+      await upsertBrandToDB(updated);
     }
     setEditingBrand(null);
   }
-  function deleteBrand(id) {
+  async function deleteBrand(id) {
     setBrands(p => { const u=p.filter(b=>b.id!==id); if(selectedBrandId===id) setSelectedBrandId(u[0]?.id||""); return u; });
+    await deleteBrandFromDB(id);
   }
   function copyScript(s) { navigator.clipboard.writeText(`HOOK:\n${s.hook}\n\nBODY:\n${s.body}\n\nCTA:\n${s.cta}`); }
   function copyAdCopyItem(a) { navigator.clipboard.writeText(`HEADLINE:\n${a.headline}\n\nBODY:\n${a.body}`); }
@@ -665,10 +686,14 @@ Return ONLY this exact JSON, nothing else:
           </div>
           <div className="sidebar-client" style={{padding:"14px 16px",borderBottom:"1px solid #414141"}}>
             <div style={{fontSize:10,fontWeight:800,color:"#5c5c5c",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}}>Active client</div>
-            <select style={{width:"100%",padding:"8px 10px",background:"#414141",border:"1px solid #5c5c5c",borderRadius:7,color:"#fff",fontSize:12,fontFamily:"inherit",fontWeight:700,cursor:"pointer"}}
-              value={selectedBrandId} onChange={e=>{setSelectedBrandId(e.target.value);setExportState("idle");setExportUrl(null);}}>
-              {brands.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
+            {brandsLoading ? (
+              <div style={{padding:"8px 10px",background:"#414141",borderRadius:7,color:"#838383",fontSize:12,fontWeight:600}}>Loading brands…</div>
+            ) : (
+              <select style={{width:"100%",padding:"8px 10px",background:"#414141",border:"1px solid #5c5c5c",borderRadius:7,color:"#fff",fontSize:12,fontFamily:"inherit",fontWeight:700,cursor:"pointer"}}
+                value={selectedBrandId} onChange={e=>{setSelectedBrandId(e.target.value);setExportState("idle");setExportUrl(null);}}>
+                {brands.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            )}
 
           </div>
           <nav className="sidebar-nav" style={{padding:"14px 10px",display:"flex",flexDirection:"column",gap:3}}>
