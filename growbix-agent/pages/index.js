@@ -293,7 +293,7 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
+          model: "claude-haiku-4-5",
           max_tokens: 300,
           tools: [{ type: "web_search_20250305", name: "web_search" }],
           messages: [{ role:"user", content:`${instruction} URL: ${url}. Summarise in plain text under 120 words. Key facts, claims, and customer language only. No markdown.` }],
@@ -418,7 +418,7 @@ Return ONLY this exact JSON, nothing else:
       const res  = await fetch("/api/claude", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:4000, system:systemPrompt, messages:[{role:"user",content:userPrompt}] }),
+        body: JSON.stringify({ model:"claude-sonnet-4-6", max_tokens:4000, system:systemPrompt, messages:[{role:"user",content:userPrompt}] }),
       });
       const data = await res.json();
       if (!res.ok || data.error) { setError(`API error: ${data.error?.message || `HTTP ${res.status}`}`); setLoading(false); return; }
@@ -587,7 +587,7 @@ Return ONLY this exact JSON, nothing else:
       const res = await fetch("/api/claude", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:3000, system:systemPrompt, messages }),
+        body: JSON.stringify({ model:"claude-sonnet-4-6", max_tokens:3000, system:systemPrompt, messages }),
       });
       const data = await res.json();
       if (!res.ok || data.error) { setAdCopyError(`API error: ${data.error?.message || `HTTP ${res.status}`}`); setAdCopyLoading(false); return; }
@@ -899,7 +899,7 @@ function TranslateView({ brand, brands, selectedBrandId, setSelectedBrandId, his
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 1500,
         system: system,
         messages: [{ role: "user", content: input }],
