@@ -61,11 +61,43 @@ export default function Page() {
 }
 
 
-const HISTORY_KEY = "growbix_ugc_history";
-
 // ── Supabase config ───────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://mepmtaatpctypovdjmnp.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1lcG10YWF0cGN0eXBvdmRqbW5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxNTY0OTYsImV4cCI6MjA5MzczMjQ5Nn0.S4Z2mZyZ7ocqaJDGaEsBxu-e26y_GV1O0B3Q-bUbkw4";
+
+async function fetchHistoryFromDB() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/history?select=*&order=saved_at.desc`, {
+    headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
+  });
+  if (!res.ok) return {};
+  const rows = await res.json();
+  const grouped = {};
+  for (const r of rows) {
+    if (!grouped[r.brand_id]) grouped[r.brand_id] = [];
+    grouped[r.brand_id].push({ id: r.id, type: r.type, savedAt: r.saved_at, ...r.data });
+  }
+  return grouped;
+}
+
+async function insertHistoryToDB(brandId, entry) {
+  const { id, type, savedAt, ...rest } = entry;
+  await fetch(`${SUPABASE_URL}/rest/v1/history`, {
+    method: "POST",
+    headers: {
+      "apikey": SUPABASE_KEY,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ id, brand_id: brandId, type, saved_at: savedAt, data: rest }),
+  });
+}
+
+async function deleteHistoryFromDB(id) {
+  await fetch(`${SUPABASE_URL}/rest/v1/history?id=eq.${id}`, {
+    method: "DELETE",
+    headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` },
+  });
+}
 
 async function fetchBrandsFromDB() {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/brands?select=*&order=created_at.asc`, {
@@ -97,10 +129,7 @@ async function deleteBrandFromDB(id) {
   });
 }
 
-function loadHistory() {
-  try { const r = localStorage.getItem(HISTORY_KEY); return r ? JSON.parse(r) : {}; } catch { return {}; }
-}
-function saveHistory(h) { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); }
+
 
 const GOALS      = ["Drive purchase","Build awareness","Get sign-ups","Retarget warm audience","Boost social proof"];
 const ANGLES     = ["Problem → Solution","Before & After","Social proof","Founder story","Myth busting","Tutorial/How-to","Unboxing/reveal"];
@@ -154,7 +183,7 @@ async function exportToDocx(brandName, history) {
   }));
 
   history.forEach((entry, ei) => {
-    if (entry.type === "adcopy") return; // skip ad copy entries in script export
+    if (entry.type === "adcopy" || entry.type === "translate") return; // skip non-script entries
     const date = new Date(entry.savedAt).toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" });
     const time = new Date(entry.savedAt).toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit" });
 
@@ -235,23 +264,24 @@ function App() {
   const [adCopyError, setAdCopyError]     = useState("");
   const [fetchStatus, setFetchStatus]     = useState(null);
   const [adCopyFetchStatus, setAdCopyFetchStatus] = useState(null);
-  const [history, setHistory]             = useState(loadHistory);   // { brandId: [entry] }
+  const [history, setHistory]             = useState({});
   const [exportState, setExportState]     = useState("idle");        // idle | loading | done | error
   const [exportUrl, setExportUrl]         = useState(null);
   const [editingBrand, setEditingBrand]   = useState(null);
   const [brandForm, setBrandForm]         = useState({ name:"", valueProposition:"", audience:"", tone:"", products:[{id:"1",title:"",url:"",mechanism:"",keyResult:"",failedAlternatives:"",mainObjection:""}], shopUrl:"", trustpilotUrl:"", mechanism:"", keyResult:"", failedAlternatives:"", mainObjection:"", heroProof:"", guarantee:"", competitorCliches:"", founderStory:"", priceAndOffer:"", notes:"" });
   const [selectedProductIdx, setSelectedProductIdx] = useState(0);
 
-  // Load brands from Supabase on mount
+  // Load brands AND history from Supabase on mount
   useEffect(() => {
     setBrandsLoading(true);
-    fetchBrandsFromDB().then(loaded => {
-      setBrands(loaded);
-      if (loaded.length > 0) setSelectedBrandId(loaded[0].id);
+    Promise.all([fetchBrandsFromDB(), fetchHistoryFromDB()]).then(([loadedBrands, loadedHistory]) => {
+      setBrands(loadedBrands);
+      setHistory(loadedHistory);
+      if (loadedBrands.length > 0) setSelectedBrandId(loadedBrands[0].id);
       setBrandsLoading(false);
     }).catch(() => setBrandsLoading(false));
   }, []);
-  useEffect(() => { saveHistory(history); }, [history]);
+
 
   const selectedBrand = brands.find(b => b.id === selectedBrandId);
   const brandHistory  = history[selectedBrandId] || [];
@@ -419,6 +449,7 @@ Return ONLY this exact JSON, nothing else:
         const existing = prev[selectedBrandId] || [];
         return { ...prev, [selectedBrandId]: [entry, ...existing] };
       });
+      insertHistoryToDB(selectedBrandId, entry).catch(console.error);
 
     } catch (err) { setError(`Network error: ${err.message}`); }
     finally { setLoading(false); }
@@ -595,6 +626,7 @@ Return ONLY this exact JSON, nothing else:
         const existing = prev[selectedBrandId] || [];
         return { ...prev, [selectedBrandId]: [entry, ...existing] };
       });
+      insertHistoryToDB(selectedBrandId, entry).catch(console.error);
 
     } catch(err) { setAdCopyError(`Network error: ${err.message}`); }
     finally { setAdCopyLoading(false); }
@@ -613,6 +645,7 @@ Return ONLY this exact JSON, nothing else:
 
   function deleteHistoryEntry(entryId) {
     setHistory(prev => ({ ...prev, [selectedBrandId]: (prev[selectedBrandId]||[]).filter(e=>e.id!==entryId) }));
+    deleteHistoryFromDB(entryId).catch(console.error);
   }
 
   // ── Brand CRUD ───────────────────────────────────────────────────────────
@@ -658,7 +691,7 @@ Return ONLY this exact JSON, nothing else:
         .sc:hover{box-shadow:0 6px 24px rgba(255,87,87,.1)!important;border-color:#ffacac!important;}
         .sl:hover{color:#ff5757!important;}
         .he:hover{background:#f9f9f9!important;}
-        @keyframes bounce{0%,100%{transform:translateY(0);opacity:1}50%{transform:translateY(-8px);opacity:.5}}
+        @keyframes bounce{0%,100%{transform:translateY(0);opacity:1}50%{transform:translateY(-8px);opacity:.5}} @keyframes spin{to{transform:rotate(360deg);}}
         @keyframes fi{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
         .fi{animation:fi .35s ease;}
         @media(max-width:768px){
@@ -697,7 +730,7 @@ Return ONLY this exact JSON, nothing else:
 
           </div>
           <nav className="sidebar-nav" style={{padding:"14px 10px",display:"flex",flexDirection:"column",gap:3}}>
-            {[{id:"generate",icon:"⚡",label:"UGC Scripts"},{id:"adcopy",icon:"✍️",label:"Ad Copy"},{id:"history",icon:"🕘",label:`History (${brandHistory.length})`},{id:"brands",icon:"🏢",label:`Brands (${brands.length})`}].map(item=>(
+            {[{id:"generate",icon:"⚡",label:"UGC Scripts"},{id:"adcopy",icon:"✍️",label:"Ad Copy"},{id:"translate",icon:"🌍",label:"Translator"},{id:"history",icon:"🕘",label:`History (${brandHistory.length})`},{id:"brands",icon:"🏢",label:`Brands (${brands.length})`}].map(item=>(
               <button key={item.id} className="nb"
                 style={{display:"flex",alignItems:"center",gap:10,padding:"11px 12px",borderRadius:8,border:"none",background:view===item.id?"#ff5757":"transparent",color:view===item.id?"#fff":"#838383",cursor:"pointer",fontSize:13,fontFamily:"inherit",fontWeight:700,textAlign:"left",transition:"all 0.15s"}}
                 onClick={()=>setView(item.id)}>{item.icon} {item.label}
@@ -710,6 +743,7 @@ Return ONLY this exact JSON, nothing else:
         <main className="main-content" style={{flex:1,overflow:"auto"}}>
           {view==="generate" && <GenerateView brand={selectedBrand} brief={brief} setBrief={setBrief} onGenerate={generateScripts} loading={loading} error={error} scripts={scripts} onCopy={copyScript} onSwitchToBrands={()=>setView("brands")} fetchStatus={fetchStatus} />}
           {view==="adcopy"   && <AdCopyView brand={selectedBrand} brief={adCopyBrief} setBrief={setAdCopyBrief} onGenerate={generateAdCopy} loading={adCopyLoading} error={adCopyError} copies={adCopies} onCopy={copyAdCopyItem} onSwitchToBrands={()=>setView("brands")} fetchStatus={adCopyFetchStatus} uploadedImages={uploadedImages} setUploadedImages={setUploadedImages} />}
+          {view==="translate"&& <TranslateView brand={selectedBrand} brands={brands} selectedBrandId={selectedBrandId} setSelectedBrandId={setSelectedBrandId} history={history} setHistory={setHistory} />}
           {view==="history"  && <HistoryView brand={selectedBrand} history={brandHistory} onDelete={deleteHistoryEntry} onExport={handleExportDocx} exportState={exportState} exportUrl={exportUrl} onCopy={copyScript} />}
           {view==="brands"   && <BrandsView brands={brands} editingBrand={editingBrand} brandForm={brandForm} setBrandForm={setBrandForm} onNew={openNewBrand} onEdit={openEditBrand} onDelete={deleteBrand} onSave={saveBrand} onCancel={()=>setEditingBrand(null)} />}
         </main>
@@ -801,6 +835,294 @@ function GenerateView({ brand, brief, setBrief, onGenerate, loading, error, scri
   );
 }
 
+// ── Translator View ──────────────────────────────────────────────────────────
+const TRANSLATE_LANGUAGES = [
+  { code:"sv", name:"Swedish",    flag:"🇸🇪", system:"You are a professional translator specialized in Danish to Swedish. Translate the given Danish text into natural, idiomatic Swedish. Return ONLY the translated text without explanations, notes, or any other text." },
+  { code:"no", name:"Norwegian",  flag:"🇳🇴", system:"You are a professional translator specialized in Danish to Norwegian. Translate the given Danish text into natural, idiomatic Norwegian Bokmål. Return ONLY the translated text without explanations, notes, or any other text." },
+  { code:"de", name:"German",     flag:"🇩🇪", system:`You are a professional translator. Translate the given Danish text into German. Return ONLY the translated text without explanations, notes, or any other text.
+
+RULES YOU MUST ALWAYS FOLLOW:
+
+1. FORMAL ADDRESS (Sie-form) — no exceptions
+   - Always use: Sie, Ihnen, Ihr, Ihre, Ihren, Ihres, Sich
+   - Never use: du, dich, dir, dein, deine, dich, sich (informal)
+
+2. DO NOT TRANSLATE LITERALLY — use natural German formulations
+
+3. TONE AND STYLE — elegant and trustworthy, not discount-y
+   - The language should feel: Scandinavian, calm, stylish, friendly, inspiring, trustworthy
+   - Avoid: aggressive sales formulations, overuse of hype, American marketing language, pushy tone
+   - Prefer: light, elegant and inspiring language focused on style, comfort and everyday joy
+
+4. SHORT HEADLINES — German tends to get long quickly. Keep headlines concise.
+
+5. CURRENCY AND PRICES — keep Danish prices, write them German-style (e.g. "650 DKK" or "88 € inkl. Versand")
+
+GENERAL: These rules apply to all German marketing translation. Adapt the tone to the specific context and industry conventions.` },
+  { code:"en", name:"English",    flag:"🇬🇧", system:"You are a professional translator specialized in Danish to English. Translate the given Danish text into natural, idiomatic British English. Return ONLY the translated text without explanations, notes, or any other text." },
+  { code:"pl", name:"Polish",     flag:"🇵🇱", system:"You are a professional translator specialized in Danish to Polish. Translate the given Danish text into natural, idiomatic Polish. Return ONLY the translated text without explanations, notes, or any other text." },
+  { code:"fr", name:"French",     flag:"🇫🇷", system:"You are a professional translator specialized in Danish to French. Translate the given Danish text into natural, idiomatic French. Return ONLY the translated text without explanations, notes, or any other text." },
+  { code:"es", name:"Spanish",    flag:"🇪🇸", system:"You are a professional translator specialized in Danish to Spanish. Translate the given Danish text into natural, idiomatic Castilian Spanish. Return ONLY the translated text without explanations, notes, or any other text." },
+  { code:"it", name:"Italian",    flag:"🇮🇹", system:"You are a professional translator specialized in Danish to Italian. Translate the given Danish text into natural, idiomatic Italian. Return ONLY the translated text without explanations, notes, or any other text." },
+  { code:"fi", name:"Finnish",    flag:"🇫🇮", system:"You are a professional translator specialized in Danish to Finnish. Translate the given Danish text into natural, idiomatic Finnish. Return ONLY the translated text without explanations, notes, or any other text." },
+  { code:"pt", name:"Portuguese", flag:"🇵🇹", system:"You are a professional translator specialized in Danish to Portuguese. Translate the given Danish text into natural, idiomatic European Portuguese. Return ONLY the translated text without explanations, notes, or any other text." },
+];
+
+function TranslateView({ brand, brands, selectedBrandId, setSelectedBrandId, history, setHistory }) {
+  const [input, setInput]             = useState("");
+  const [title, setTitle]             = useState("");
+  const [mode, setMode]               = useState("single");
+  const [activeLang, setActiveLang]   = useState("sv");
+  const [selected, setSelected]       = useState(["sv"]);
+  const [outputs, setOutputs]         = useState({});
+  const [loading, setLoading]         = useState(false);
+  const [loadingCodes, setLoadingCodes] = useState([]);
+  const [error, setError]             = useState("");
+  const [copiedCode, setCopiedCode]   = useState(null);
+  const [useBrand, setUseBrand]       = useState(false);
+
+  const lang   = TRANSLATE_LANGUAGES.find(l => l.code === activeLang);
+  const output = outputs[activeLang] || "";
+
+  function toggleSelected(code) {
+    setSelected(prev => prev.includes(code) ? prev.filter(c=>c!==code) : [...prev, code]);
+  }
+  function selectAll()  { setSelected(TRANSLATE_LANGUAGES.map(l=>l.code)); }
+  function selectNone() { setSelected([]); }
+
+  async function translateOne(l, brandContext) {
+    const system = brandContext
+      ? `${l.system}\n\nBRAND CONTEXT (use this to adapt the tone, terminology, and audience appropriately):\n${brandContext}`
+      : l.system;
+
+    const res = await fetch("/api/claude", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1500,
+        system: system,
+        messages: [{ role: "user", content: input }],
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error?.message || `HTTP ${res.status}`);
+    return data.content?.map(b=>b.text||"").join("") || "";
+  }
+
+  async function doTranslate() {
+    if (!input.trim() || loading) return;
+    let targets = [];
+    if (mode === "single")     targets = [TRANSLATE_LANGUAGES.find(l => l.code === activeLang)];
+    else if (mode === "all")   targets = TRANSLATE_LANGUAGES;
+    else                       targets = TRANSLATE_LANGUAGES.filter(l => selected.includes(l.code));
+    if (targets.length === 0) return;
+
+    setLoading(true); setError(""); setLoadingCodes(targets.map(l=>l.code));
+
+    // Build optional brand context
+    let brandContext = "";
+    if (useBrand && brand) {
+      brandContext = [
+        brand.valueProposition && `Value proposition: ${brand.valueProposition}`,
+        brand.audience && `Target audience: ${brand.audience}`,
+        brand.tone     && `Tone of voice: ${brand.tone}`,
+      ].filter(Boolean).join("\n");
+    }
+
+    const results = { ...outputs };
+    for (const l of targets) {
+      try {
+        const text = await translateOne(l, brandContext);
+        results[l.code] = text || "Translation error.";
+        setOutputs({ ...results });
+        setLoadingCodes(prev => prev.filter(c=>c!==l.code));
+      } catch (err) {
+        results[l.code] = `Error: ${err.message}`;
+        setOutputs({ ...results });
+        setLoadingCodes(prev => prev.filter(c=>c!==l.code));
+      }
+    }
+
+    if (targets.length > 0 && mode !== "single") setActiveLang(targets[0].code);
+
+    // Save to history
+    if (brand && selectedBrandId) {
+      const entry = {
+        id: Date.now().toString(),
+        savedAt: Date.now(),
+        type: "translate",
+        brief: {
+          title: title || "Untitled translation",
+          source: input,
+          languages: targets.map(t=>t.code),
+          useBrand,
+        },
+        translations: results,
+      };
+      setHistory(prev => {
+        const existing = prev[selectedBrandId] || [];
+        return { ...prev, [selectedBrandId]: [entry, ...existing] };
+      });
+      insertHistoryToDB(selectedBrandId, entry).catch(console.error);
+    }
+
+    setLoading(false); setLoadingCodes([]);
+  }
+
+  function copyOutput(code) {
+    const txt = outputs[code];
+    if (!txt) return;
+    navigator.clipboard.writeText(txt);
+    setCopiedCode(code);
+    setTimeout(()=>setCopiedCode(null), 1500);
+  }
+
+  return (
+    <div style={{padding:"36px 40px",maxWidth:1000}}>
+      <div style={{marginBottom:24}}>
+        <h1 style={{fontSize:26,fontWeight:900,letterSpacing:"-0.03em",color:"#222",marginBottom:6}}>🌍 Translator</h1>
+        <p style={{color:"#838383",fontSize:13,fontWeight:600}}>Translate Danish marketing copy into 10 languages with brand-aware tone.</p>
+      </div>
+
+      {/* Setup */}
+      <div style={{background:"#fff",border:"1.5px solid #ebebeb",borderRadius:14,padding:"22px 24px",marginBottom:18,display:"flex",flexDirection:"column",gap:14}}>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          <label style={{fontSize:11,fontWeight:800,color:"#414141",textTransform:"uppercase",letterSpacing:"0.08em"}}>Title <span style={{color:"#bcbcbc",fontWeight:600,textTransform:"none",letterSpacing:0}}>· optional, shown in history</span></label>
+          <input style={{padding:"9px 12px",border:"1.5px solid #ebebeb",borderRadius:8,fontSize:13,fontFamily:"inherit"}} value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Summer campaign headlines" />
+        </div>
+
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          <label style={{fontSize:11,fontWeight:800,color:"#414141",textTransform:"uppercase",letterSpacing:"0.08em"}}>Danish text to translate</label>
+          <textarea style={{padding:"12px 14px",border:"1.5px solid #ebebeb",borderRadius:8,fontSize:14,fontFamily:"inherit",minHeight:120,resize:"vertical",lineHeight:1.6}} value={input} onChange={e=>setInput(e.target.value)} placeholder="Paste or write Danish copy here…" />
+        </div>
+
+        {/* Brand toggle */}
+        <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+          <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:12,fontWeight:700,color:"#414141"}}>
+            <input type="checkbox" checked={useBrand} onChange={e=>setUseBrand(e.target.checked)} style={{accentColor:"#ff5757"}} />
+            Apply brand context
+          </label>
+          {useBrand && brands.length > 0 && (
+            <select value={selectedBrandId} onChange={e=>setSelectedBrandId(e.target.value)}
+              style={{padding:"6px 10px",border:"1.5px solid #ebebeb",borderRadius:7,fontSize:12,fontFamily:"inherit",fontWeight:700,cursor:"pointer"}}>
+              {brands.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          )}
+          {useBrand && brand && (
+            <span style={{fontSize:11,color:"#838383",fontWeight:600}}>Using: {brand.name}</span>
+          )}
+        </div>
+
+        {/* Mode toggle */}
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {[{id:"single",label:"Single language"},{id:"multi",label:"Multiple languages"},{id:"all",label:"All languages"}].map(m=>(
+            <button key={m.id} onClick={()=>setMode(m.id)}
+              style={{padding:"6px 14px",fontSize:12,borderRadius:20,border:`1.5px solid ${mode===m.id?"#222":"#ebebeb"}`,background:mode===m.id?"#222":"#fff",color:mode===m.id?"#fff":"#838383",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Single language picker */}
+        {mode==="single" && (
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {TRANSLATE_LANGUAGES.map(l=>(
+              <button key={l.code} onClick={()=>setActiveLang(l.code)}
+                style={{padding:"6px 12px",fontSize:12,borderRadius:20,border:`1.5px solid ${activeLang===l.code?"#222":"#ebebeb"}`,background:activeLang===l.code?"#222":"#fff",color:activeLang===l.code?"#fff":"#5c5c5c",cursor:"pointer",fontFamily:"inherit",fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
+                <span>{l.flag}</span><span>{l.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Multi language picker */}
+        {mode==="multi" && (
+          <div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+              {TRANSLATE_LANGUAGES.map(l=>{
+                const isSel = selected.includes(l.code);
+                return (
+                  <button key={l.code} onClick={()=>toggleSelected(l.code)}
+                    style={{padding:"6px 12px",fontSize:12,borderRadius:20,border:`1.5px solid ${isSel?"#222":"#ebebeb"}`,background:isSel?"#222":"#fff",color:isSel?"#fff":"#5c5c5c",cursor:"pointer",fontFamily:"inherit",fontWeight:600,display:"flex",alignItems:"center",gap:5}}>
+                    <span>{l.flag}</span><span>{l.name}</span>
+                    {isSel && <span style={{fontSize:10,opacity:0.7}}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{display:"flex",gap:14}}>
+              <button onClick={selectAll}  style={{background:"none",border:"none",fontSize:11,color:"#838383",cursor:"pointer",padding:0,fontFamily:"inherit",fontWeight:700}}>Select all</button>
+              <button onClick={selectNone} style={{background:"none",border:"none",fontSize:11,color:"#838383",cursor:"pointer",padding:0,fontFamily:"inherit",fontWeight:700}}>Clear</button>
+            </div>
+          </div>
+        )}
+
+        {/* Translate button */}
+        <button onClick={doTranslate}
+          disabled={!input.trim() || loading || (mode==="multi" && selected.length===0)}
+          style={{padding:"12px 28px",background:(!input.trim()||loading||(mode==="multi"&&selected.length===0))?"#ebebeb":"#ff5757",color:(!input.trim()||loading||(mode==="multi"&&selected.length===0))?"#bcbcbc":"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:800,fontFamily:"inherit",cursor:(!input.trim()||loading)?"not-allowed":"pointer",alignSelf:"flex-start",transition:"all 0.15s"}}>
+          {loading ? "Translating…" : "🌍 Translate"}
+        </button>
+      </div>
+
+      {/* Output tabs */}
+      <div style={{background:"#fff",border:"1.5px solid #ebebeb",borderRadius:14,overflow:"hidden"}}>
+        <div style={{display:"flex",borderBottom:"1px solid #f0f0f0",overflowX:"auto",padding:"0 12px"}}>
+          {TRANSLATE_LANGUAGES.map(l=>{
+            const hasResult = !!outputs[l.code];
+            const isTranslating = loadingCodes.includes(l.code);
+            const isActive = activeLang === l.code;
+            return (
+              <button key={l.code} onClick={()=>setActiveLang(l.code)}
+                style={{padding:"14px 14px",background:"none",border:"none",borderBottom:`2px solid ${isActive?"#ff5757":"transparent"}`,color:isActive?"#222":"#838383",cursor:"pointer",fontSize:12,fontFamily:"inherit",fontWeight:isActive?800:600,display:"flex",alignItems:"center",gap:6,whiteSpace:"nowrap"}}>
+                <span>{l.flag}</span><span>{l.name}</span>
+                {isTranslating && <span style={{width:7,height:7,border:"1.5px solid #c8c4bc",borderTopColor:"#6b6760",borderRadius:"50%",display:"inline-block",animation:"spin 0.7s linear infinite"}} />}
+                {hasResult && !isTranslating && <span style={{width:6,height:6,borderRadius:"50%",background:"#3b6d11",display:"inline-block"}} />}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{padding:"20px 24px",background:"#fafaf8",minHeight:140}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <span style={{fontSize:11,fontWeight:800,letterSpacing:"0.08em",color:"#838383",textTransform:"uppercase"}}>
+              {lang.flag} {lang.name}
+              {lang.code === "de" && (
+                <span style={{marginLeft:8,fontSize:10,background:"#fff3cd",color:"#856404",padding:"1px 6px",borderRadius:4,fontWeight:600,letterSpacing:0}}>Sie-form</span>
+              )}
+            </span>
+            {output && (
+              <button onClick={()=>copyOutput(activeLang)}
+                style={{padding:"4px 12px",background:"#fff",border:"1.5px solid #dbdbdb",borderRadius:6,color:copiedCode===activeLang?"#3b6d11":"#838383",cursor:"pointer",fontSize:11,fontFamily:"inherit",fontWeight:700,transition:"all 0.15s"}}>
+                {copiedCode===activeLang?"✓ Copied":"Copy"}
+              </button>
+            )}
+          </div>
+
+          {error && <p style={{color:"#a32d2d",fontSize:13,margin:0}}>{error}</p>}
+
+          {!output && !error && (
+            loadingCodes.includes(activeLang) ? (
+              <div style={{display:"flex",gap:5,padding:"6px 0"}}>
+                {[0,1,2].map(i=>(
+                  <div key={i} style={{width:7,height:7,borderRadius:"50%",background:"#c8c4bc",animation:`bounce 1s ease-in-out ${i*0.15}s infinite`}} />
+                ))}
+              </div>
+            ) : (
+              <p style={{color:"#bcbcbc",fontSize:13,fontStyle:"italic",margin:0}}>Translation will appear here…</p>
+            )
+          )}
+
+          {output && (
+            <p style={{fontSize:14,lineHeight:1.7,color:"#222",margin:0,whiteSpace:"pre-wrap"}}>{output}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── History View ─────────────────────────────────────────────────────────────
 function HistoryView({ brand, history, onDelete, onExport, exportState, exportUrl, onCopy }) {
   const [expanded, setExpanded] = useState({});
@@ -836,42 +1158,56 @@ function HistoryView({ brand, history, onDelete, onExport, exportState, exportUr
 
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         {history.map(entry=>{
-          const isAdCopy = entry.type === "adcopy";
-          const items    = isAdCopy ? (entry.copies||[]) : (entry.scripts||[]);
+          const isAdCopy    = entry.type === "adcopy";
+          const isTranslate = entry.type === "translate";
+          const items    = isAdCopy ? (entry.copies||[]) : isTranslate ? Object.entries(entry.translations||{}) : (entry.scripts||[]);
           const date = new Date(entry.savedAt).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});
           const time = new Date(entry.savedAt).toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});
           const isOpen = expanded[entry.id];
+
+          const badgeBg     = isTranslate ? "#e8f5e9" : isAdCopy ? "#e8eeff" : "#fff0f0";
+          const badgeBorder = isTranslate ? "#a5d6a7" : isAdCopy ? "#aac4ff" : "#ffacac";
+          const badgeColor  = isTranslate ? "#2e7d32" : isAdCopy ? "#3b67e8" : "#ff5757";
+          const tileBg      = isTranslate ? "#f0f9f0" : isAdCopy ? "#f0f4ff" : "#fff0f0";
+          const tileIcon    = isTranslate ? "🌍" : isAdCopy ? "✍️" : "📅";
+          const badgeLabel  = isTranslate ? "TRANSLATION" : isAdCopy ? "AD COPY" : "UGC SCRIPT";
+
           return (
             <div key={entry.id} style={{background:"#fff",border:"1.5px solid #ebebeb",borderRadius:12,overflow:"hidden",transition:"border-color 0.2s"}}>
               {/* Entry header */}
               <div className="he" onClick={()=>toggle(entry.id)}
                 style={{display:"flex",alignItems:"center",gap:14,padding:"16px 22px",cursor:"pointer",transition:"background 0.15s"}}>
-                <div style={{width:36,height:36,background:isAdCopy?"#f0f4ff":"#fff0f0",border:`1.5px solid ${isAdCopy?"#aac4ff":"#ffacac"}`,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>{isAdCopy?"✍️":"📅"}</div>
+                <div style={{width:36,height:36,background:tileBg,border:`1.5px solid ${badgeBorder}`,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>{tileIcon}</div>
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:800,color:"#222",marginBottom:3}}>
-                    <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",background:isAdCopy?"#e8eeff":"#fff0f0",border:`1px solid ${isAdCopy?"#aac4ff":"#ffacac"}`,borderRadius:20,color:isAdCopy?"#3b67e8":"#ff5757",marginRight:8}}>{isAdCopy?"AD COPY":"UGC SCRIPT"}</span>
-                    {isAdCopy && entry.brief.title ? (
+                    <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",background:badgeBg,border:`1px solid ${badgeBorder}`,borderRadius:20,color:badgeColor,marginRight:8}}>{badgeLabel}</span>
+                    {(isAdCopy || isTranslate) && entry.brief.title ? (
                       <span style={{color:"#222"}}>{entry.brief.title}</span>
                     ) : (
                       <span>{date} <span style={{fontWeight:500,color:"#838383"}}>at {time}</span></span>
                     )}
                   </div>
-                  {isAdCopy && entry.brief.title && (
+                  {(isAdCopy || isTranslate) && entry.brief.title && (
                     <div style={{fontSize:11,color:"#838383",fontWeight:500,marginBottom:3}}>{date} at {time}</div>
                   )}
                   <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>
-                    {isAdCopy
-                      ? [entry.brief.language, entry.brief.awarenessLevel?.split("—")[0]?.trim(), entry.brief.angle?.slice(0,30), entry.brief.imageCount > 0 ? `${entry.brief.imageCount} images` : null].filter(Boolean).map(tag=>(
-                          <span key={tag} style={{fontSize:10,fontWeight:700,padding:"2px 8px",background:"#f4f4f4",borderRadius:20,color:"#5c5c5c"}}>{tag}</span>
-                        ))
-                      : [entry.brief.goal, entry.brief.audienceStage, entry.brief.angle, entry.brief.emotion].filter(Boolean).map(tag=>(
-                          <span key={tag} style={{fontSize:10,fontWeight:700,padding:"2px 8px",background:"#f4f4f4",borderRadius:20,color:"#5c5c5c"}}>{tag}</span>
-                        ))
+                    {isTranslate
+                      ? (entry.brief.languages||[]).map(code=>{
+                          const l = TRANSLATE_LANGUAGES.find(x=>x.code===code);
+                          return l ? <span key={code} style={{fontSize:10,fontWeight:700,padding:"2px 8px",background:"#f4f4f4",borderRadius:20,color:"#5c5c5c"}}>{l.flag} {l.name}</span> : null;
+                        })
+                      : isAdCopy
+                        ? [entry.brief.language, entry.brief.awarenessLevel?.split("—")[0]?.trim(), entry.brief.angle?.slice(0,30), entry.brief.imageCount > 0 ? `${entry.brief.imageCount} images` : null].filter(Boolean).map(tag=>(
+                            <span key={tag} style={{fontSize:10,fontWeight:700,padding:"2px 8px",background:"#f4f4f4",borderRadius:20,color:"#5c5c5c"}}>{tag}</span>
+                          ))
+                        : [entry.brief.goal, entry.brief.audienceStage, entry.brief.angle, entry.brief.emotion].filter(Boolean).map(tag=>(
+                            <span key={tag} style={{fontSize:10,fontWeight:700,padding:"2px 8px",background:"#f4f4f4",borderRadius:20,color:"#5c5c5c"}}>{tag}</span>
+                          ))
                     }
                   </div>
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                  <span style={{fontSize:11,fontWeight:700,color:"#bcbcbc"}}>{items.length} variations</span>
+                  <span style={{fontSize:11,fontWeight:700,color:"#bcbcbc"}}>{items.length} {isTranslate ? "languages" : "variations"}</span>
                   <button className="ib" onClick={e=>{e.stopPropagation();onDelete(entry.id);}}
                     style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"#fd7b7b",fontFamily:"inherit",fontWeight:700,padding:"4px 8px",transition:"color 0.15s"}}>Delete</button>
                   <span style={{fontSize:12,color:"#bcbcbc",fontWeight:700}}>{isOpen?"▲":"▼"}</span>
@@ -880,7 +1216,29 @@ function HistoryView({ brand, history, onDelete, onExport, exportState, exportUr
               {/* Expanded content */}
               {isOpen && (
                 <div className="fi" style={{borderTop:"1px solid #f4f4f4",padding:"16px 22px",display:"flex",flexDirection:"column",gap:12}}>
-                  {isAdCopy
+                  {isTranslate ? (
+                    <>
+                      {entry.brief.source && (
+                        <div style={{background:"#fafafa",border:"1.5px solid #f0f0f0",borderRadius:8,padding:"14px 16px"}}>
+                          <div style={{fontSize:10,fontWeight:800,letterSpacing:"0.1em",color:"#838383",marginBottom:6}}>SOURCE (DANISH)</div>
+                          <div style={{fontSize:13,color:"#5c5c5c",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{entry.brief.source}</div>
+                        </div>
+                      )}
+                      {Object.entries(entry.translations||{}).map(([code,text])=>{
+                        const l = TRANSLATE_LANGUAGES.find(x=>x.code===code);
+                        return (
+                          <div key={code} style={{background:"#fafafa",border:"1.5px solid #f0f0f0",borderRadius:8,padding:"14px 16px"}}>
+                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                              <div style={{fontSize:10,fontWeight:800,letterSpacing:"0.1em",color:"#2e7d32"}}>{l?l.flag:""} {l?l.name.toUpperCase():code.toUpperCase()}</div>
+                              <button onClick={()=>navigator.clipboard.writeText(text)}
+                                style={{padding:"3px 10px",background:"#fff",border:"1.5px solid #dbdbdb",borderRadius:5,color:"#838383",cursor:"pointer",fontSize:10,fontFamily:"inherit",fontWeight:700}}>Copy</button>
+                            </div>
+                            <div style={{fontSize:13,color:"#222",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{text}</div>
+                          </div>
+                        );
+                      })}
+                    </>
+                  ) : isAdCopy
                     ? items.map((c,i)=><AdCopyCard key={i} copy={c} onCopy={()=>navigator.clipboard.writeText(`HEADLINE:\n${c.headline}\n\nBODY:\n${c.body}${c.description ? `\n\nDESCRIPTION:\n${c.description}` : ``}`)} compact />)
                     : items.map((s,i)=><ScriptCard key={i} script={s} onCopy={()=>onCopy(s)} compact />)
                   }
